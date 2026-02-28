@@ -16,7 +16,7 @@ export interface StructuredResponse {
   confirmation_required?: boolean;
   user_confirmed?: boolean;
   /** UI-persisted decision — injected by the frontend, not the LLM. */
-  confirmation_decision?: "accepted" | "rejected";
+  confirmation_decision?: 'accepted' | 'rejected';
   /** Risk level: 0=low, 1=moderate, 2=high, 3=extreme */
   risk?: number;
 }

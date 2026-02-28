@@ -12,7 +12,7 @@ import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type SortDirection = "asc" | "desc" | null;
+type SortDirection = 'asc' | 'desc' | null;
 interface SortState {
   column: string;
   direction: SortDirection;
@@ -21,9 +21,8 @@ interface SortState {
 function parseRows(result: string): Record<string, unknown>[] | null {
   try {
     const parsed = JSON.parse(result);
-    const rows: unknown = Array.isArray(parsed)
-      ? parsed
-      : (parsed?.rows ?? parsed?.data ?? null);
+    const rows: unknown =
+      Array.isArray(parsed) ? parsed : (parsed?.rows ?? parsed?.data ?? null);
     if (!Array.isArray(rows) || rows.length === 0) return null;
     return rows as Record<string, unknown>[];
   } catch {
@@ -36,7 +35,7 @@ interface ResultTableProps {
 }
 
 export function ResultTable({ result }: ResultTableProps) {
-  const [sort, setSort] = useState<SortState>({ column: "", direction: null });
+  const [sort, setSort] = useState<SortState>({ column: '', direction: null });
   const rows = useMemo(() => parseRows(result), [result]);
 
   const sortedRows = useMemo(() => {
@@ -45,19 +44,20 @@ export function ResultTable({ result }: ResultTableProps) {
       const av = a[sort.column], bv = b[sort.column];
       const aNum = Number(av), bNum = Number(bv);
       const numeric = !isNaN(aNum) && !isNaN(bNum);
-      const cmp = numeric
-        ? aNum - bNum
-        : String(av ?? "").localeCompare(String(bv ?? ""));
-      return sort.direction === "asc" ? cmp : -cmp;
+      const cmp =
+        numeric ?
+          aNum - bNum
+        : String(av ?? '').localeCompare(String(bv ?? ''));
+      return sort.direction === 'asc' ? cmp : -cmp;
     });
   }, [rows, sort]);
 
   // Non-tabular fallback
   if (!rows) {
     const trimmed = result?.trim();
-    if (!trimmed || trimmed === "null" || trimmed === "[]" || trimmed === "{}") return null;
+    if (!trimmed || trimmed === 'null' || trimmed === '[]' || trimmed === '{}') return null;
     return (
-      <pre className="rounded-md border bg-muted/50 px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap">
+      <pre className='rounded-md border bg-muted/50 px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap'>
         {trimmed}
       </pre>
     );
