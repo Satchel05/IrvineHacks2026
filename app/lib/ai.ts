@@ -148,21 +148,44 @@ export async function initializeSchema(connectionString: string) {
     arguments: {},
   });
 
-  // Parse the tables list
-  const tablesContent = result.content as Array<{ type: string; text: string }>;
-  const tablesText = tablesContent.find((c) => c.type === 'text')?.text || '';
+  // Extract candidate table names from list_tables output
+  const candidates = new Set<string>();
 
-  // Get detailed schema for each table
-  const tableNames = tablesText
-    .split('\n')
-    .filter((line: string) => line.trim() && !line.includes('Tables in'))
-    .map((line: string) => line.replace(/^[\s-]*/, '').trim())
-    .filter(Boolean);
+  const addCandidate = (value: string) => {
+    const normalized = value.replace(/^public\./, '').trim();
+    if (!normalized) return;
+    if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(normalized)) return;
+    candidates.add(normalized);
+  };
 
+  const tablesContent = result.content as Array<{ type?: string; text?: string }>;
+  const tablesText = tablesContent
+    .filter((entry) => entry?.type === 'text' && typeof entry.text === 'string')
+    .map((entry) => entry.text as string)
+    .join('\n');
+
+  try {
+    const parsed = JSON.parse(tablesText) as Array<{ table_name?: string }>;
+    if (Array.isArray(parsed)) {
+      for (const row of parsed) {
+        if (typeof row?.table_name === 'string') {
+          addCandidate(row.table_name);
+        }
+      }
+    }
+  } catch {
+    for (const match of tablesText.matchAll(
+      /"table_name"\s*:\s*"([A-Za-z_][A-Za-z0-9_$]*)"/g,
+    )) {
+      if (match[1]) addCandidate(match[1]);
+    }
+  }
+
+  // Use list_tables as source of truth for table names/count
+  const tableNames = Array.from(candidates);
   const schemaDetails: string[] = [];
 
   for (const tableName of tableNames.slice(0, 10)) {
-    // Limit to first 10 tables
     try {
       const schemaResult = await mcpClient.callTool({
         name: 'describe_table_schema',
@@ -174,9 +197,11 @@ export async function initializeSchema(connectionString: string) {
       }>;
       const schemaText =
         schemaContent.find((c) => c.type === 'text')?.text || '';
-      schemaDetails.push(`Table: ${tableName}\n${schemaText}`);
+      if (schemaText) {
+        schemaDetails.push(`Table: ${tableName}\n${schemaText}`);
+      }
     } catch {
-      // Skip tables that can't be described
+      // Keep table in count even if schema details fail for this table
     }
   }
 

@@ -15,6 +15,7 @@ export interface Message {
 export interface Session {
   id: string;
   title: string;
+  connectionString: string;
   messages: Message[];
   isLoading: boolean;
   createdAt: number;
@@ -32,6 +33,7 @@ interface ChatStore {
   setActiveSession: (sessionId: string) => void;
   renameSession: (sessionId: string, title: string) => void;
   clearSession: (sessionId: string) => void;
+  setSessionConnection: (sessionId: string, connectionString: string) => void;
 
   // Message actions
   addMessage: (
@@ -60,6 +62,7 @@ function makeSession(overrides?: Partial<Session>): Session {
   return {
     id: crypto.randomUUID(),
     title: 'New Chat',
+    connectionString: '',
     messages: [],
     isLoading: false,
     createdAt: now,
@@ -106,7 +109,8 @@ export const useChatStore = create<ChatStore>()(
 
       deleteSession: (sessionId) => {
         set((s) => {
-          const { [sessionId]: _, ...rest } = s.sessions;
+          const { [sessionId]: deletedSession, ...rest } = s.sessions;
+          void deletedSession;
           const ids = Object.keys(rest);
           const nextActiveId =
             s.activeSessionId === sessionId ?
@@ -145,6 +149,23 @@ export const useChatStore = create<ChatStore>()(
             },
           },
         }));
+      },
+
+      setSessionConnection: (sessionId, connectionString) => {
+        set((s) => {
+          const session = s.sessions[sessionId];
+          if (!session) return s;
+          return {
+            sessions: {
+              ...s.sessions,
+              [sessionId]: {
+                ...session,
+                connectionString,
+                updatedAt: Date.now(),
+              },
+            },
+          };
+        });
       },
 
       // ── Message actions ──────────────────────────────────────────────────

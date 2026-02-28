@@ -1,42 +1,51 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Chat } from '@/components/chat';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
+import { useEffect, useState } from "react";
+import { Chat } from "@/components/chat";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Database, Eye, EyeOff } from 'lucide-react';
-import { useChatStore } from '@/app/store/chatStore';
+} from "@/components/ui/card";
+import { Database, Eye, EyeOff } from "lucide-react";
+import { useChatStore } from "@/app/store/chatStore";
 
 export default function PlaygroundPage() {
-  const [connectionString, setConnectionString] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
-  const [tempConnection, setTempConnection] = useState('');
+  const [tempConnection, setTempConnection] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  const activeSessionId = useChatStore((s) => s.activeSessionId);
   const activeSession = useChatStore((s) =>
-    s.activeSessionId ? s.sessions[s.activeSessionId] : null
+    s.activeSessionId ? s.sessions[s.activeSessionId] : null,
   );
+  const setSessionConnection = useChatStore((s) => s.setSessionConnection);
+
+  const connectionString = activeSession?.connectionString ?? "";
+  const isConnected = Boolean(connectionString);
+
+  useEffect(() => {
+    setTempConnection(connectionString);
+  }, [connectionString, activeSessionId]);
 
   const handleConnect = (e: React.FormEvent) => {
     e.preventDefault();
-    if (tempConnection.trim()) {
-      setConnectionString(tempConnection.trim());
-      setIsConnected(true);
+    if (!activeSessionId) return;
+
+    const trimmedConnection = tempConnection.trim();
+    if (trimmedConnection) {
+      setSessionConnection(activeSessionId, trimmedConnection);
     }
   };
 
   const handleDisconnect = () => {
-    setConnectionString('');
-    setIsConnected(false);
-    setTempConnection('');
+    if (!activeSessionId) return;
+    setSessionConnection(activeSessionId, "");
+    setTempConnection("");
   };
 
   if (!isConnected) {
@@ -59,7 +68,7 @@ export default function PlaygroundPage() {
                 <div className="relative">
                   <Input
                     id="connectionString"
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     placeholder="postgresql://user:password@host:port/database"
                     value={tempConnection}
                     onChange={(e) => setTempConnection(e.target.value)}
