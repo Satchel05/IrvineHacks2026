@@ -57,10 +57,96 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
  *     It resets on server restart (next dev / deploy).
  */
 const cache = new Map<string, CacheEntry>();
+const knownTablesByConnection = new Map<string, Set<string>>();
 
 /** The system prompt sent to Claude on every query. Edit this to change the LLM's behavior. */
 const SYSTEM_PROMPT =
   "You are a helpful assistant that translates natural language to SQL and queries a PostgreSQL database. Always show the SQL you're running and return results in a clear format.";
+
+/** Extra instruction when strict output is OFF (conversational mode). */
+const CONVERSATIONAL_PROMPT_SUFFIX =
+  'If the user is making small talk or asking a general conversational question, reply naturally in plain text and do not use JSON output formatting.';
+
+/**
+ * Strict structured output schema for DB/task responses.
+ *
+ * This is intentionally conservative (all primitive string fields) to avoid
+ * Anthropic JSON-schema validation pitfalls.
+ */
+const STRICT_OUTPUT_CONFIG = {
+  format: {
+    type: 'json_schema',
+    schema: {
+      type: 'object',
+      properties: {
+        sql: { type: 'string' },
+        explanation: { type: 'string' },
+        result: {
+          type: 'string',
+          description: 'JSON-stringified query result payload of table data.',
+        },
+        confirmation: {
+          type: 'string',
+          description:
+            'Confirmation message for the user with number of rows returned or affected describing what they\'d need to know to proceed. Do not include the raw SQL or result data in this field.',
+        },
+      },
+      required: ['sql', 'explanation', 'result', 'confirmation'],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/**
+ * Decide whether strict structured output should be enforced for this turn.
+ *
+ * Heuristic:
+ *  - Enable for likely DB/task prompts (query, select, rows, schema, etc.)
+ *  - Disable for small talk / conversational prompts
+ */
+function shouldUseStrictOutput(
+  chatHistory: ChatMessage[],
+  knownTables?: Set<string>,
+): boolean {
+  const lastUser = (() => {
+    for (let i = chatHistory.length - 1; i >= 0; i -= 1) {
+      const m = chatHistory[i];
+      if (m.role === 'user' && typeof m.content === 'string') {
+        return m.content.trim();
+      }
+    }
+    return '';
+  })();
+
+  if (!lastUser) return false;
+
+  // Strong override for greeting/small-talk turns.
+  // If this matches, we never enforce strict output for the turn.
+  const conversationalOnly =
+    /^(hi|hello|hey|yo|sup|howdy|good\s+(morning|afternoon|evening)|how are you|what'?s up|thanks|thank you|cool|nice|ok|okay)[!.?\s]*$/i;
+  if (conversationalOnly.test(lastUser)) return false;
+
+  // If the user explicitly mentions a known table name, force strict mode.
+  // Example: "providers please" should still be treated as a DB/task request.
+  if (knownTables?.size) {
+    const normalized = lastUser
+      .toLowerCase()
+      .replace(/[^a-z0-9_\s]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean);
+    const terms = new Set(normalized);
+    for (const table of knownTables) {
+      if (terms.has(table)) return true;
+    }
+  }
+
+  const taskLike =
+    /\b(sql|query|select|insert|update|delete|table|tables|rows|column|columns|schema|database|db|count|join|where|group by|order by|limit|show|list|find|get)\b/i;
+  const conversational =
+    /\b(hi|hello|hey|how are you|thanks|thank you|good morning|good evening|who are you|what can you do|help me understand)\b/i;
+
+  return taskLike.test(lastUser) && !conversational.test(lastUser);
+}
 
 /**
  * Get (or create) an MCP client for the given Postgres connection string.
@@ -124,6 +210,13 @@ export async function* queryDatabaseStream(
   connectionString: string,
 ): AsyncGenerator<string> {
   const { mcpClient, tools } = await getMCPClient(connectionString);
+  const useStrictOutput = shouldUseStrictOutput(
+    chatHistory,
+    knownTablesByConnection.get(connectionString),
+  );
+  const systemPrompt = useStrictOutput
+    ? SYSTEM_PROMPT
+    : `${SYSTEM_PROMPT} ${CONVERSATIONAL_PROMPT_SUFFIX}`;
 
   // Convert our ChatMessage[] to Anthropic's MessageParam[] (strip 'system' role)
   const messages: Anthropic.MessageParam[] = chatHistory
@@ -137,23 +230,9 @@ export async function* queryDatabaseStream(
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       tools,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages,
-      output_config: {
-      "format": {
-        "type": "json_schema",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "sql": {"type": "string"},
-            "explanation": {"type": "string"},
-            "result": {"type": "string", "description": "JSON-stringified query result payload."},
-            "confirmation": {"type": "string", "description": "Confirmation message for the user with number of rows returned or affected."}
-          },
-          "required": ["sql", "explanation", "result", "confirmation"],
-          "additionalProperties": false
-        }
-      }}
+      ...(useStrictOutput ? { output_config: STRICT_OUTPUT_CONFIG } : {}),
     });
 
     // Yield text chunks as they arrive from the stream
@@ -248,6 +327,10 @@ export async function initializeSchema(connectionString: string) {
 
   // Step 3: Parse table names from the JSON text
   const tableNames = extractTableNames(rawText);
+  knownTablesByConnection.set(
+    connectionString,
+    new Set(tableNames.map((t) => t.toLowerCase())),
+  );
 
   // Step 4: Fetch detailed schema for up to 10 tables
   const details: string[] = [];
