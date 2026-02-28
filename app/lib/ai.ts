@@ -64,7 +64,7 @@ const SYSTEM_PROMPT = `You are a professional PostgreSQL translator that transla
 
 RULES:
 - Always show the SQL you're running and return results in a clear format.
-- For SELECT queries: Execute and return the SQL along with the results.
+- For SELECT queries: Execute and return the SQL along with the results. If there exists Foreign Key relationships, you MUST join the tables and return the results in a single query. If there are multiple foreign keys, you MUST join all of them. When mull values are found, you MUST return them as NULL in the result set.
 - For INSERT/UPDATE/DELETE operations: Ask for confirmation BEFORE executing.
   - CRITICAL: When confirming an INSERT, you MUST include the exact row(s) that will be inserted in the result field as a JSON array. Show all column values that will be written.
   - For UPDATE/DELETE, show the affected rows or describe what will change.
@@ -301,6 +301,11 @@ export async function* queryDatabaseStream(
       name: block.name,
       arguments: block.input as Record<string, unknown>,
     });
+
+    // Yield immediate feedback with result preview
+    const preview = JSON.stringify(result.content).slice(0, 200);
+    yield `✅ *${block.name} completed.* Processing results...\n${preview}\n`;
+
 
   results.push({
     type: 'tool_result',
