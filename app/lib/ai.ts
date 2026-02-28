@@ -90,6 +90,14 @@ const STRICT_OUTPUT_CONFIG = {
           description:
             'Confirmation message for the user with number of rows returned or affected describing what they\'d need to know to proceed. Do not include the raw SQL or result data in this field.',
         },
+        confirmation_required: {
+          type: 'boolean',
+          description: 'Whether this operation requires user confirmation before executing (POST, CREATE, DELETE).',
+        },
+        user_confirmed: {
+          type: 'boolean',
+          description: 'The default value of this should always be false, and only set to true once the user confirms execution.',
+}
       },
       required: ['sql', 'explanation', 'result', 'confirmation'],
       additionalProperties: false,
@@ -260,23 +268,37 @@ export async function* queryDatabaseStream(
     );
 
     const results: Anthropic.ToolResultBlockParam[] = [];
-    for (const block of toolBlocks) {
-      // Show the user which tool is being called
-      yield `\n\n🔧 *Executing tool: ${block.name}...*\n\n`;
 
-      // Forward the tool call to the MCP Postgres server
-      const result = await mcpClient.callTool({
-        name: block.name,
-        arguments: block.input as Record<string, unknown>,
-      });
+  for (const block of toolBlocks) {
+    const toolInput = block.input as {
+      confirmation_required?: boolean;
+      user_confirmed?: boolean;
+      confirmation?: string;
+      sql?: string;
+    };
 
-      // Package the result for Claude's next turn
-      results.push({
-        type: 'tool_result',
-        tool_use_id: block.id,
-        content: JSON.stringify(result.content),
-      });
+  // If the tool requires confirmation but the user hasn't confirmed yet
+    if (toolInput.confirmation_required && !toolInput.user_confirmed) {
+    // Yield a confirmation prompt to the user
+      yield `⚠️ *Confirmation required for ${block.name}:*\n${toolInput.confirmation || 'Are you sure you want to execute this operation?'}\nPlease confirm to proceed.`;
+
+      // Skip execution until the user responds with user_confirmed: true
+      continue;
     }
+
+  // Otherwise, execute the tool normally
+    yield `\n\n🔧 *Executing tool: ${block.name}...*\n\n`;
+    const result = await mcpClient.callTool({
+      name: block.name,
+      arguments: block.input as Record<string, unknown>,
+    });
+
+  results.push({
+    type: 'tool_result',
+    tool_use_id: block.id,
+    content: JSON.stringify(result.content),
+  });
+}
 
     // Feed tool results back as a "user" message (Anthropic's convention)
     messages.push({ role: 'user', content: results });

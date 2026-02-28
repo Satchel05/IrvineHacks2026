@@ -2,69 +2,71 @@
  * AssistantMessage.tsx — Renders structured AI responses from the database assistant.
  *
  * The LLM returns JSON matching this shape:
- *   { sql, explanation, result, confirmation }
+ *   { sql, explanation, result, confirmation, confirmation_required?, user_confirmed? }
  *
- * This component parses that JSON and renders each field distinctly:
- *   - sql          → Syntax-highlighted SQL code block (hidden if empty)
- *   - explanation  → Plain prose text
- *   - result       → Interactive sortable table (hidden if no rows)
- *   - confirmation → Muted summary line at the bottom
+ * Rendering rules:
+ *   - sql                → SQL code block (hidden if empty)
+ *   - explanation        → Plain prose
+ *   - result             → Sortable table (hidden if no rows)
+ *   - confirmation_required: true → Amber warning banner with Accept / Reject buttons.
+ *                          Clicking either calls `onConfirm(accepted)` so the
+ *                          parent can send a follow-up message to the LLM.
+ *   - confirmation_required: false/absent → Plain muted confirmation line.
  *
- * If the content isn't valid JSON (e.g. tool-call status messages like
- * "🔧 Executing tool…"), it falls back to rendering raw text as-is.
- *
- * Usage:
- *   <AssistantMessage content={message.content} />
+ * Non-JSON content (e.g. "🔧 Executing tool…") falls back to plain text.
  */
 
+"use client";
+
 import { useState, useMemo } from "react";
-import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronsUpDown, Check, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** The JSON shape the LLM is instructed to return. */
 interface StructuredResponse {
   sql: string;
   explanation: string;
-  /** JSON-stringified query result — an array of row objects, or a raw string. */
+  /** JSON-stringified query result payload. */
   result: string;
   confirmation: string;
+  /** If true, the operation needs user sign-off before executing. */
+  confirmation_required?: boolean;
+  user_confirmed?: boolean;
 }
 
 type SortDirection = "asc" | "desc" | null;
+interface SortState { column: string; direction: SortDirection; }
 
-interface SortState {
-  column: string;
-  direction: SortDirection;
+export interface AssistantMessageProps {
+  content: string;
+  /**
+   * Called when the user clicks Accept (true) or Reject (false).
+   * The parent should inject a follow-up user message into the chat
+   * so the LLM knows whether to proceed.
+   */
+  onConfirm?: (accepted: boolean) => void;
 }
 
 // ─── SQL Code Block ───────────────────────────────────────────────────────────
 
 function SqlBlock({ sql }: { sql: string }) {
   const [copied, setCopied] = useState(false);
-
   const copy = () => {
     navigator.clipboard.writeText(sql).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
   };
-
   return (
     <div className="rounded-md border bg-muted/50 overflow-hidden text-sm">
-      {/* Header bar */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted text-muted-foreground text-xs font-mono">
         <span>SQL</span>
-        <button
-          onClick={copy}
-          className="hover:text-foreground transition-colors"
-          aria-label="Copy SQL"
-        >
+        <button onClick={copy} className="hover:text-foreground transition-colors">
           {copied ? "Copied!" : "Copy"}
         </button>
       </div>
-      {/* Code */}
       <pre className="px-4 py-3 overflow-x-auto font-mono text-sm leading-relaxed whitespace-pre">
         {sql}
       </pre>
@@ -74,18 +76,12 @@ function SqlBlock({ sql }: { sql: string }) {
 
 // ─── Result Table ─────────────────────────────────────────────────────────────
 
-/**
- * Parses `result` (a JSON string) into an array of row objects.
- * Returns null if parsing fails or if there are no rows.
- */
 function parseRows(result: string): Record<string, unknown>[] | null {
   try {
     const parsed = JSON.parse(result);
-    // Some MCP tools wrap rows under { rows: [...] } or { data: [...] }
     const rows: unknown = Array.isArray(parsed)
       ? parsed
       : parsed?.rows ?? parsed?.data ?? null;
-
     if (!Array.isArray(rows) || rows.length === 0) return null;
     return rows as Record<string, unknown>[];
   } catch {
@@ -95,45 +91,35 @@ function parseRows(result: string): Record<string, unknown>[] | null {
 
 function ResultTable({ result }: { result: string }) {
   const [sort, setSort] = useState<SortState>({ column: "", direction: null });
-
   const rows = useMemo(() => parseRows(result), [result]);
 
   if (!rows) {
-  const resultString = typeof result === "string" ? result : JSON.stringify(result);
-  const trimmed = resultString.trim();
-  
-  // Only render if there is meaningful content
-  if (!trimmed || trimmed === "null" || trimmed === "[]" || trimmed === "{}") return null;
-
-  return (
-    <pre className="rounded-md border bg-muted/50 px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap">
-      {trimmed}
-    </pre>
-  );
-}
+    const trimmed = result?.trim();
+    if (!trimmed || trimmed === "null" || trimmed === "[]" || trimmed === "{}") return null;
+    return (
+      <pre className="rounded-md border bg-muted/50 px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap">
+        {trimmed}
+      </pre>
+    );
+  }
 
   const columns = Object.keys(rows[0]);
-
-  const toggleSort = (col: string) => {
+  const toggleSort = (col: string) =>
     setSort((prev) => {
       if (prev.column !== col) return { column: col, direction: "asc" };
       if (prev.direction === "asc") return { column: col, direction: "desc" };
       return { column: "", direction: null };
     });
-  };
 
   const sortedRows = useMemo(() => {
     if (!sort.column || !sort.direction) return rows;
     return [...rows].sort((a, b) => {
-      const av = a[sort.column];
-      const bv = b[sort.column];
-      const aStr = av == null ? "" : String(av);
-      const bStr = bv == null ? "" : String(bv);
-      // Numeric sort if both values look like numbers
-      const aNum = Number(av);
-      const bNum = Number(bv);
+      const av = a[sort.column], bv = b[sort.column];
+      const aNum = Number(av), bNum = Number(bv);
       const numeric = !isNaN(aNum) && !isNaN(bNum);
-      const cmp = numeric ? aNum - bNum : aStr.localeCompare(bStr);
+      const cmp = numeric
+        ? aNum - bNum
+        : String(av ?? "").localeCompare(String(bv ?? ""));
       return sort.direction === "asc" ? cmp : -cmp;
     });
   }, [rows, sort]);
@@ -158,8 +144,7 @@ function ResultTable({ result }: { result: string }) {
                   className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground select-none whitespace-nowrap"
                 >
                   <span className="flex items-center gap-1">
-                    {col}
-                    <SortIcon col={col} />
+                    {col} <SortIcon col={col} />
                   </span>
                 </th>
               ))}
@@ -170,9 +155,8 @@ function ResultTable({ result }: { result: string }) {
               <tr
                 key={i}
                 className={cn(
-                  "border-b last:border-0 transition-colors",
+                  "border-b last:border-0 transition-colors hover:bg-muted/40",
                   i % 2 === 0 ? "bg-background" : "bg-muted/20",
-                  "hover:bg-muted/40",
                 )}
               >
                 {columns.map((col) => (
@@ -181,11 +165,9 @@ function ResultTable({ result }: { result: string }) {
                     className="px-3 py-2 text-sm font-mono whitespace-nowrap max-w-[300px] truncate"
                     title={row[col] == null ? "NULL" : String(row[col])}
                   >
-                    {row[col] == null ? (
-                      <span className="text-muted-foreground italic">NULL</span>
-                    ) : (
-                      String(row[col])
-                    )}
+                    {row[col] == null
+                      ? <span className="text-muted-foreground italic">NULL</span>
+                      : String(row[col])}
                   </td>
                 ))}
               </tr>
@@ -197,126 +179,146 @@ function ResultTable({ result }: { result: string }) {
   );
 }
 
-// ─── Fallback: Raw text ───────────────────────────────────────────────────────
+// ─── Confirmation Banner ──────────────────────────────────────────────────────
 
-/** Used for non-JSON messages like "🔧 Executing tool: query..." */
-function RawMessage({ content }: { content: string }) {
+/**
+ * Shown when `confirmation_required` is true.
+ *
+ * Displays the LLM's confirmation text and two action buttons.
+ * After the user clicks, the buttons are replaced by a compact status badge
+ * so the decision is permanently visible in the chat history.
+ */
+function ConfirmationBanner({
+  text,
+  onConfirm,
+}: {
+  text: string;
+  onConfirm?: (accepted: boolean) => void;
+}) {
+  const [decision, setDecision] = useState<"accepted" | "rejected" | null>(null);
+
+  const handleClick = (accepted: boolean) => {
+    setDecision(accepted ? "accepted" : "rejected");
+    onConfirm?.(accepted);
+  };
+
   return (
-    <pre className="whitespace-pre-wrap text-sm font-sans">
-      {content}
-    </pre>
+    <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+        ⚠️ Confirmation required
+      </p>
+
+      <p className="text-sm leading-relaxed">{text}</p>
+
+      {decision === null ? (
+        <div className="flex gap-2 pt-1">
+          <Button
+            size="sm"
+            className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+            onClick={() => handleClick(true)}
+          >
+            <Check className="h-3.5 w-3.5" />
+            Accept
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+            onClick={() => handleClick(false)}
+          >
+            <X className="h-3.5 w-3.5" />
+            Reject
+          </Button>
+        </div>
+      ) : (
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium",
+            decision === "accepted"
+              ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
+              : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
+          )}
+        >
+          {decision === "accepted"
+            ? <Check className="h-3 w-3" />
+            : <X className="h-3 w-3" />}
+          {decision === "accepted" ? "Accepted — executing…" : "Rejected"}
+        </span>
+      )}
+    </div>
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-interface AssistantMessageProps {
-  content: string;
-}
-
-/**
- * Extracts a JSON object from content that may contain leading/trailing
- * non-JSON lines (e.g. "🔧 *Executing tool: query...*\n\n{...}").
- */
 function extractStructured(content: string): StructuredResponse | null {
-  // Find the first '{' and last '}' to isolate the JSON blob
-  const contentString = typeof content === "string" ? content : JSON.stringify(content);
-  const start = contentString.indexOf("{");
-  const end = contentString.lastIndexOf("}");
+  const start = content.indexOf("{");
+  const end = content.lastIndexOf("}");
   if (start === -1 || end === -1 || end <= start) return null;
-
   try {
     const parsed = JSON.parse(content.slice(start, end + 1));
-    if (parsed && typeof parsed.explanation === "string") {
-      return parsed as StructuredResponse;
-    }
-  } catch {
-    // Not valid JSON
-  }
+    if (parsed && typeof parsed.explanation === "string") return parsed as StructuredResponse;
+  } catch { /* not JSON */ }
   return null;
 }
 
-/**
- * Strip markdown table syntax and excess whitespace from confirmation text.
- * The LLM sometimes adds a markdown table even though we render one ourselves.
- */
-function cleanConfirmation(text: any): string {
-  const textString = typeof text === "string" ? text : JSON.stringify(text);
-
-  return textString
+function cleanConfirmation(text: string): string {
+  return text
     .split("\n")
     .filter((line) => !line.trim().startsWith("|") && !line.trim().startsWith("|-"))
     .join("\n")
     .trim();
 }
 
-/**
- * Renders a structured assistant message. Falls back to raw text if the
- * content isn't valid JSON or doesn't match the expected shape.
- */
-export function AssistantMessage({ content }: AssistantMessageProps) {
+// ─── Main export ──────────────────────────────────────────────────────────────
+
+export function AssistantMessage({ content, onConfirm }: AssistantMessageProps) {
   const structured = extractStructured(content);
 
-  // Collect any non-JSON prefix lines (e.g. tool status messages)
+  // Any non-JSON prefix lines (e.g. "🔧 Executing tool: query...")
   const prefixLines = structured
     ? content
         .slice(0, content.indexOf("{"))
         .split("\n")
-        .map((l) => l.replace(/\*/g, "").trim()) // strip markdown emphasis
+        .map((l) => l.replace(/\*/g, "").trim())
         .filter(Boolean)
     : [];
 
   if (!structured) {
-    return <RawMessage content={typeof content === "string" ? content : JSON.stringify(content, null, 2)} />;
+    return <pre className="whitespace-pre-wrap text-sm font-sans">{content}</pre>;
   }
 
-  const { sql, explanation, result, confirmation } = structured;
-  console.log("SQL TYPE:", typeof sql, sql);
-  // Convert sql to string if it's not already
-// Convert sql to string if needed
-const sqlString = typeof sql === "string" ? sql : JSON.stringify(sql);
+  const { sql, explanation, result, confirmation, confirmation_required } = structured;
 
-// Determine if SQL is actually meaningful
-const hasValidSql =
-  sqlString &&
-  sqlString.trim() !== "" &&          // not empty string
-  sqlString.trim() !== "{}" &&        // not literal empty object
-  sqlString.trim() !== "null";        // sometimes LLM outputs null
+  const sqlString = typeof sql === "string" ? sql : "";
+  const hasSql =
+    sqlString.trim().length > 0 &&
+    sqlString.trim() !== "{}" &&
+    sqlString.trim() !== "null";
 
-// Then check if it has content
-// const hasSql = sqlString.trim().length > 0;
-  const cleanedConfirmation = confirmation ? cleanConfirmation(confirmation) : "";
+  const cleanedConfirmation = confirmation ? cleanConfirmation(String(confirmation)) : "";
 
   return (
     <div className="space-y-3 text-sm">
-      {/* 0. Tool status lines (e.g. "Executing tool: query...") */}
+      {/* Tool status prefix */}
       {prefixLines.map((line, i) => (
-        <p key={i} className="text-muted-foreground text-xs">
-          {line}
-        </p>
+        <p key={i} className="text-muted-foreground text-xs">{line}</p>
       ))}
 
-      
-      
+      {/* SQL */}
+      {hasSql && <SqlBlock sql={sqlString.trim()} />}
 
-      {/* 1. SQL code block — only if non-empty */}
-      {hasValidSql && <SqlBlock sql={sqlString.trim()} />}
+      {/* Explanation */}
+      {explanation && <p className="leading-relaxed">{explanation}</p>}
 
-      {/* 2. Explanation — always shown */}
-      {hasValidSql && explanation && (
-        <p className="leading-relaxed">{explanation}</p>
-      )}
-
-      {/* 3. Result table (or raw fallback) */}
+      {/* Result table */}
       {result && <ResultTable result={result} />}
 
-      {/* 4. Confirmation — muted summary line, markdown table stripped */}
+      {/* Confirmation — interactive banner or plain muted text */}
       {cleanedConfirmation && (
-        <div className="bg-grey-30 border-3 border-grey-400 p-4 mt-4 rounded-md">
-  <p className="text-black-800 text-base leading-relaxed">
-    {cleanedConfirmation}
-  </p>
-</div>
+        confirmation_required
+          ? <ConfirmationBanner text={cleanedConfirmation} onConfirm={onConfirm} />
+          : <p className="text-muted-foreground text-xs border-t pt-2">{cleanedConfirmation}</p>
       )}
     </div>
   );

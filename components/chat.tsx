@@ -67,12 +67,16 @@ function Avatar({ isUser }: { isUser: boolean }) {
  * A single chat message with avatar and content bubble.
  * User messages are right-aligned; assistant messages are left-aligned.
  */
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({
+  message,
+  onConfirm,
+}: {
+  message: Message;
+  onConfirm?: (accepted: boolean) => void;
+}) {
   const isUser = message.role === "user";
   return (
-    <div
-      className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}
-    >
+    <div className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}>
       <Avatar isUser={isUser} />
       <div
         className={cn(
@@ -81,17 +85,10 @@ function MessageBubble({ message }: { message: Message }) {
         )}
       >
         {isUser ? (
-          // User messages are plain text
-          <pre className="whitespace-pre-wrap text-sm font-sans">
-            {message.content}
-          </pre>
+          <pre className="whitespace-pre-wrap text-sm font-sans">{message.content}</pre>
         ) : (
-          // Assistant messages are parsed structured JSON
-          <AssistantMessage content={message.content} />
-
-          // <pre className="whitespace-pre-wrap text-sm font-sans">
-          //   {message.content}
-          // </pre>
+          // <AssistantMessage content={message.content} onConfirm={onConfirm} />
+          <pre className="whitespace-pre-wrap text-sm font-sans">{message.content}</pre>
         )}
       </div>
     </div>
@@ -265,58 +262,57 @@ export function Chat({ connectionString }: ChatProps) {
    *     as each chunk arrives (gives the user real-time feedback)
    *  6. On error, add an error message; always clear `isLoading`
    */
-  const send = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || !activeId || isLoading) return;
+  const sendMessage = useCallback(async (text: string) => {
+  if (!text.trim() || !activeId || isLoading) return;
 
-    setInput(""); // Clear the input immediately
-    addMessage(activeId, { role: "user", content: text });
-    setLoading(activeId, true);
+  addMessage(activeId, { role: "user", content: text });
+  setLoading(activeId, true);
 
-    try {
-      // Read fresh state directly from the store (avoids stale closure issues)
-      const current = useChatStore.getState().sessions[activeId];
-      const history =
-        current?.messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })) ?? [];
+  try {
+    const current = useChatStore.getState().sessions[activeId];
+    const history =
+      current?.messages.map((m) => ({ role: m.role, content: m.content })) ?? [];
 
-      // POST the full chat history to the streaming API route
-      const res = await fetch("/api/query", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ connectionString, messages: history }),
-      });
+    const res = await fetch("/api/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ connectionString, messages: history }),
+    });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Something went wrong");
-      }
-
-      // Create an empty assistant message that we'll fill in as chunks arrive
-      const asstMsg = addMessage(activeId, { role: "assistant", content: "" });
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      // Stream chunks and accumulate into the assistant message
-      const decoder = new TextDecoder();
-      let accumulated = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        accumulated += decoder.decode(value, { stream: true });
-        updateMessage(activeId, asstMsg.id, accumulated); // Live update
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Something went wrong";
-      addMessage(activeId, { role: "assistant", content: `Error: ${msg}` });
-    } finally {
-      setLoading(activeId, false);
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || "Something went wrong");
     }
-  };
+
+    const asstMsg = addMessage(activeId, { role: "assistant", content: "" });
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("No response body");
+
+    const decoder = new TextDecoder();
+    let accumulated = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      accumulated += decoder.decode(value, { stream: true });
+      updateMessage(activeId, asstMsg.id, accumulated);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Something went wrong";
+    addMessage(activeId, { role: "assistant", content: `Error: ${msg}` });
+  } finally {
+    setLoading(activeId, false);
+  }
+}, [activeId, isLoading, connectionString, addMessage, updateMessage, setLoading]);
+
+// Keep the form's onSubmit as a thin wrapper
+const send = async (e: React.FormEvent) => {
+  e.preventDefault();
+  const text = input.trim();
+  if (!text) return;
+  setInput("");
+  await sendMessage(text);
+};
+
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -343,8 +339,18 @@ export function Chat({ connectionString }: ChatProps) {
         ) : (
           <div className="space-y-2">
             {messages.map((m) => (
-              <MessageBubble key={m.id} message={m} />
-            ))}
+  <MessageBubble
+    key={m.id}
+    message={m}
+    onConfirm={(accepted) =>
+      sendMessage(
+        accepted
+          ? "Yes, confirmed. Please proceed with the operation."
+          : "No, cancel the operation. Do not execute it.",
+      )
+    }
+  />
+))}
             {isLoading && <ThinkingIndicator />}
             {/* Invisible anchor for auto-scrolling */}
             <div ref={bottomRef} />
