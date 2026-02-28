@@ -1,6 +1,15 @@
-'use client';
+"use client";
 
-import { Database, Home, Settings, Play, Plus, MessageSquare, Trash2 } from 'lucide-react';
+import { useState } from "react";
+import {
+  Database,
+  Home,
+  Settings,
+  Play,
+  Plus,
+  MessageSquare,
+  Trash2,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -13,29 +22,30 @@ import {
   SidebarProvider,
   SidebarTrigger,
   SidebarFooter,
-} from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
-import { useChatStore } from '@/app/store/chatStore';
+} from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useChatStore } from "@/app/store/chatStore";
 
 const navItems = [
   {
-    title: 'Home',
-    url: '/',
+    title: "Home",
+    url: "/",
     icon: Home,
   },
   {
-    title: 'Playground',
-    url: '/playground',
+    title: "Playground",
+    url: "/playground",
     icon: Play,
   },
   {
-    title: 'Database',
-    url: '#',
+    title: "Database",
+    url: "#",
     icon: Database,
   },
   {
-    title: 'Settings',
-    url: '#',
+    title: "Settings",
+    url: "#",
     icon: Settings,
   },
 ];
@@ -46,9 +56,33 @@ function AppSidebar() {
   const createSession = useChatStore((s) => s.createSession);
   const setActiveSession = useChatStore((s) => s.setActiveSession);
   const deleteSession = useChatStore((s) => s.deleteSession);
+  const renameSession = useChatStore((s) => s.renameSession);
+
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+
+  const startEditing = (sessionId: string, currentTitle: string) => {
+    setEditingSessionId(sessionId);
+    setEditingTitle(currentTitle);
+  };
+
+  const saveEditing = () => {
+    if (!editingSessionId) return;
+    const title = editingTitle.trim();
+    if (title) {
+      renameSession(editingSessionId, title);
+    }
+    setEditingSessionId(null);
+    setEditingTitle("");
+  };
+
+  const cancelEditing = () => {
+    setEditingSessionId(null);
+    setEditingTitle("");
+  };
 
   const sessionList = Object.values(sessions).sort(
-    (a, b) => b.updatedAt - a.updatedAt
+    (a, b) => b.updatedAt - a.updatedAt,
   );
 
   return (
@@ -99,7 +133,32 @@ function AppSidebar() {
                       className="group"
                     >
                       <MessageSquare className="h-4 w-4" />
-                      <span className="truncate flex-1">{session.title}</span>
+                      {editingSessionId === session.id ? (
+                        <Input
+                          value={editingTitle}
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onBlur={saveEditing}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === "Enter") saveEditing();
+                            if (e.key === "Escape") cancelEditing();
+                          }}
+                          className="h-7"
+                        />
+                      ) : (
+                        <span
+                          className="truncate flex-1"
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            startEditing(session.id, session.title);
+                          }}
+                          title="Double-click to rename"
+                        >
+                          {session.title}
+                        </span>
+                      )}
                       <div
                         role="button"
                         tabIndex={0}
@@ -109,7 +168,7 @@ function AppSidebar() {
                           deleteSession(session.id);
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
+                          if (e.key === "Enter" || e.key === " ") {
                             e.stopPropagation();
                             deleteSession(session.id);
                           }
@@ -140,8 +199,8 @@ export default function PlaygroundLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <main className='flex-1'>
-        <div className='p-4'>
+      <main className="flex-1">
+        <div className="p-4">
           <SidebarTrigger />
         </div>
         {children}
