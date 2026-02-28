@@ -94,8 +94,8 @@ export function AssistantMessage({
   const sqlString = typeof sql === "string" ? sql : "";
   const hasSql =
     sqlString.trim().length > 0 &&
-    sqlString.trim() !== "{}" &&
-    sqlString.trim() !== "null";
+    sqlString.trim() !== '{}' &&
+    sqlString.trim() !== 'null';
 
   const cleanedConfirmation = confirmation
     ? cleanConfirmation(String(confirmation))
@@ -135,7 +135,8 @@ export function AssistantMessage({
         {result && <AffectedRecords result={result} countColor={riskCfg.countColor} />}
         {result && <ResultTable result={result} />}
 
-        {cleanedConfirmation && (
+      {/* Confirmation — interactive banner or plain muted text */}
+      {cleanedConfirmation && (
           <NotesSection
             text={cleanedConfirmation}
             notesBg={riskCfg.notesBg}
