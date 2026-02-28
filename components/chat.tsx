@@ -97,6 +97,7 @@ function MessageBubble({
         {isUser ? (
           <pre className="whitespace-pre-wrap text-sm font-sans">{message.content}</pre>
         ) : (
+          // <pre className="whitespace-pre-wrap text-sm font-sans">{message.content}</pre>
           <AssistantMessage
             content={message.content}
             onConfirm={onConfirm}

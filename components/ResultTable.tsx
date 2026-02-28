@@ -12,7 +12,7 @@ import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type SortDirection = 'asc' | 'desc' | null;
+type SortDirection = "asc" | "desc" | null;
 interface SortState {
   column: string;
   direction: SortDirection;
@@ -21,8 +21,9 @@ interface SortState {
 function parseRows(result: string): Record<string, unknown>[] | null {
   try {
     const parsed = JSON.parse(result);
-    const rows: unknown =
-      Array.isArray(parsed) ? parsed : (parsed?.rows ?? parsed?.data ?? null);
+    const rows: unknown = Array.isArray(parsed)
+      ? parsed
+      : (parsed?.rows ?? parsed?.data ?? null);
     if (!Array.isArray(rows) || rows.length === 0) return null;
     return rows as Record<string, unknown>[];
   } catch {
@@ -35,7 +36,7 @@ interface ResultTableProps {
 }
 
 export function ResultTable({ result }: ResultTableProps) {
-  const [sort, setSort] = useState<SortState>({ column: '', direction: null });
+  const [sort, setSort] = useState<SortState>({ column: "", direction: null });
   const rows = useMemo(() => parseRows(result), [result]);
 
   const sortedRows = useMemo(() => {
@@ -44,20 +45,19 @@ export function ResultTable({ result }: ResultTableProps) {
       const av = a[sort.column], bv = b[sort.column];
       const aNum = Number(av), bNum = Number(bv);
       const numeric = !isNaN(aNum) && !isNaN(bNum);
-      const cmp =
-        numeric ?
-          aNum - bNum
-        : String(av ?? '').localeCompare(String(bv ?? ''));
-      return sort.direction === 'asc' ? cmp : -cmp;
+      const cmp = numeric
+        ? aNum - bNum
+        : String(av ?? "").localeCompare(String(bv ?? ""));
+      return sort.direction === "asc" ? cmp : -cmp;
     });
   }, [rows, sort]);
 
   // Non-tabular fallback
   if (!rows) {
     const trimmed = result?.trim();
-    if (!trimmed || trimmed === 'null' || trimmed === '[]' || trimmed === '{}') return null;
+    if (!trimmed || trimmed === "null" || trimmed === "[]" || trimmed === "{}") return null;
     return (
-      <pre className='rounded-md border bg-muted/50 px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap'>
+      <pre className="rounded-md border bg-muted/50 px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap">
         {trimmed}
       </pre>
     );
@@ -131,30 +131,59 @@ export function ResultTable({ result }: ResultTableProps) {
 
 // ─── Affected Records ─────────────────────────────────────────────────────────
 
-function getRowCount(result: string): number | null {
+/**
+ * Determines whether the SQL is a write operation (INSERT/UPDATE/DELETE).
+ * For writes, `result` contains preview rows — not the actual affected count —
+ * so we should not derive the count from result.length in those cases.
+ */
+function isWriteOperation(sql: string): boolean {
+  return /^\s*(INSERT|UPDATE|DELETE|MERGE)\b/i.test(sql);
+}
+
+/**
+ * Extracts the row count from the result payload.
+ *
+ * Rules:
+ * - For SELECT queries: count the rows in the result array (only if > 0).
+ * - For write operations: look for explicit rowCount/rowsAffected fields only.
+ *   Never use array.length for writes — the array is a preview, not a count.
+ * - Returns null (hide the widget) when count cannot be determined or is 0.
+ */
+function getRowCount(result: string, sql: string): number | null {
   try {
     const parsed = JSON.parse(result);
+
+    // Explicit driver fields (present after execution)
+    if (typeof parsed?.rowCount === "number" && parsed.rowCount > 0) return parsed.rowCount;
+    if (typeof parsed?.rowsAffected === "number" && parsed.rowsAffected > 0) return parsed.rowsAffected;
+
+    // For writes: don't use array length — it's just the preview data
+    if (isWriteOperation(sql)) return null;
+
+    // For reads: count the actual result rows
     const rows = Array.isArray(parsed) ? parsed : parsed?.rows ?? parsed?.data ?? null;
-    if (Array.isArray(rows)) return rows.length;
-    if (typeof parsed?.rowCount === "number") return parsed.rowCount;
-    if (typeof parsed?.rowsAffected === "number") return parsed.rowsAffected;
+    if (Array.isArray(rows) && rows.length > 0) return rows.length;
   } catch { /* ignore */ }
   return null;
 }
 
 interface AffectedRecordsProps {
   result: string;
+  /** The SQL string — needed to distinguish SELECT vs write operations. */
+  sql: string;
   countColor: string;
 }
 
-export function AffectedRecords({ result, countColor }: AffectedRecordsProps) {
-  const count = getRowCount(result);
+export function AffectedRecords({ result, sql, countColor }: AffectedRecordsProps) {
+  const count = getRowCount(result, sql);
   if (count === null) return null;
+
+  const isWrite = isWriteOperation(sql);
 
   return (
     <div className="space-y-1">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        Affected Records
+        {isWrite ? "Rows Affected" : "Rows Returned"}
       </p>
       <p className={cn("text-2xl font-bold", countColor)}>
         {count.toLocaleString()}{" "}

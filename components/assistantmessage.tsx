@@ -25,11 +25,9 @@ import {
   extractPrefixLines,
 } from "./structured";
 import { RiskHeader } from "./RiskHeader";
-import { CollapsibleSqlBlock } from "./collapsiblesqlblock.tsx";
+import { CollapsibleSqlBlock } from "./CollapsibleSqlBlock";
 import { ResultTable, AffectedRecords } from "./ResultTable";
 import { NotesSection, ActionButtons } from "./QueryActions";
-import FancyCodeBlock from './FancyCodeBlock';
-import ReactMarkdown from 'react-markdown';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -42,7 +40,7 @@ export interface AssistantMessageProps {
   /** Notifies the parent whether this message has a pending confirmation. */
   onConfirmationStateChange?: (pending: boolean) => void;
   /** Persists the accept/reject decision into the message store. */
-  onDecisionPersist?: (decision: 'accepted' | 'rejected') => void;
+  onDecisionPersist?: (decision: "accepted" | "rejected") => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -73,9 +71,7 @@ export function AssistantMessage({
 
   // ── Non-JSON fallback (tool status lines, errors, etc.) ────────────────
   if (!structured) {
-    return (<ReactMarkdown>
-        {typeof content === 'string' ? content : String(content)}
-      </ReactMarkdown>)
+    return <pre className="whitespace-pre-wrap text-sm font-sans">{content}</pre>;
   }
 
   // ── Destructure parsed response ────────────────────────────────────────
@@ -94,8 +90,8 @@ export function AssistantMessage({
   const sqlString = typeof sql === "string" ? sql : "";
   const hasSql =
     sqlString.trim().length > 0 &&
-    sqlString.trim() !== '{}' &&
-    sqlString.trim() !== 'null';
+    sqlString.trim() !== "{}" &&
+    sqlString.trim() !== "null";
 
   const cleanedConfirmation = confirmation
     ? cleanConfirmation(String(confirmation))
@@ -132,11 +128,10 @@ export function AssistantMessage({
           </div>
         )}
 
-        {result && <AffectedRecords result={result} countColor={riskCfg.countColor} />}
+        {result && <AffectedRecords result={result} sql={sqlString} countColor={riskCfg.countColor} />}
         {result && <ResultTable result={result} />}
 
-      {/* Confirmation — interactive banner or plain muted text */}
-      {cleanedConfirmation && (
+        {cleanedConfirmation && (
           <NotesSection
             text={cleanedConfirmation}
             notesBg={riskCfg.notesBg}

@@ -16,7 +16,7 @@ export interface StructuredResponse {
   confirmation_required?: boolean;
   user_confirmed?: boolean;
   /** UI-persisted decision — injected by the frontend, not the LLM. */
-  confirmation_decision?: 'accepted' | 'rejected';
+  confirmation_decision?: "accepted" | "rejected";
   /** Risk level: 0=low, 1=moderate, 2=high, 3=extreme */
   risk?: number;
 }
@@ -27,8 +27,15 @@ export interface StructuredResponse {
  * Handles cases where the LLM prefixes output with tool-call lines like:
  *   "🔧 Executing tool: query...\n\n{ ...json... }"
  *
- * If multiple JSON blobs are present, later fields override earlier ones
- * only when the earlier value is empty/null.
+ * Merge strategy per field type:
+ *   - Text fields (sql, explanation, confirmation): first non-empty value wins.
+ *     The first blob is the LLM's considered response; later blobs are
+ *     post-tool-call summaries that sometimes omit or downgrade these fields.
+ *   - result: last non-empty value wins — the final blob has actual query data.
+ *   - risk: HIGHEST value across all blobs (most conservative).
+ *   - confirmation_required: TRUE if ANY blob says true (most conservative).
+ *   - user_confirmed: TRUE if ANY blob says true.
+ *   - confirmation_decision: first value wins (UI-injected, set once).
  */
 export function extractStructured(content: string): StructuredResponse | null {
   const jsonObjects: Partial<StructuredResponse>[] = [];
@@ -57,17 +64,39 @@ export function extractStructured(content: string): StructuredResponse | null {
 
   const merged: Partial<StructuredResponse> = {};
   for (const obj of jsonObjects) {
+    // Text fields: first non-empty wins
     if (obj.sql && !merged.sql?.trim()) merged.sql = obj.sql;
     if (obj.explanation && !merged.explanation?.trim()) merged.explanation = obj.explanation;
-    if (
-      obj.result &&
-      (!merged.result?.trim() || merged.result === "null" || merged.result === "[]")
-    ) merged.result = obj.result;
     if (obj.confirmation && !merged.confirmation?.trim()) merged.confirmation = obj.confirmation;
-    if (obj.confirmation_required !== undefined) merged.confirmation_required = obj.confirmation_required;
-    if (obj.user_confirmed !== undefined) merged.user_confirmed = obj.user_confirmed;
-    if (obj.confirmation_decision !== undefined) merged.confirmation_decision = obj.confirmation_decision;
-    if (obj.risk !== undefined) merged.risk = obj.risk;
+
+    // result: last non-empty wins (final blob has actual executed data)
+    if (obj.result?.trim() && obj.result !== "null" && obj.result !== "[]") {
+      merged.result = obj.result;
+    }
+
+    // risk: take the HIGHEST seen value — never silently downgrade
+    if (obj.risk !== undefined) {
+      merged.risk = merged.risk === undefined
+        ? obj.risk
+        : Math.max(merged.risk, obj.risk);
+    }
+
+    // confirmation_required: true if ANY blob says true
+    if (obj.confirmation_required === true) merged.confirmation_required = true;
+    else if (obj.confirmation_required === false && merged.confirmation_required === undefined) {
+      merged.confirmation_required = false;
+    }
+
+    // user_confirmed: true if ANY blob says true
+    if (obj.user_confirmed === true) merged.user_confirmed = true;
+    else if (obj.user_confirmed === false && merged.user_confirmed === undefined) {
+      merged.user_confirmed = false;
+    }
+
+    // confirmation_decision: first value wins (UI-injected, set once)
+    if (obj.confirmation_decision !== undefined && merged.confirmation_decision === undefined) {
+      merged.confirmation_decision = obj.confirmation_decision;
+    }
   }
 
   return typeof merged.explanation === "string"
