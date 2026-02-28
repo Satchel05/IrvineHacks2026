@@ -356,8 +356,8 @@ export async function* queryDatabaseStream(
     });
 
     // Yield immediate feedback with result preview
-    const preview = JSON.stringify(result.content).slice(0, 200);
-    yield `✅ *${block.name} completed.* Processing results...\n${preview}\n`;
+    // const preview = JSON.stringify(result.content).slice(0, 200);
+    // yield `✅ *${block.name} completed.* Processing results...\n${preview}\n`;
 
 
       results.push({
