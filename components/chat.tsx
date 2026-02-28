@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useChatStore, type Message } from "@/app/store/chatStore";
 import { Send, User, Bot, Loader2, Database } from "lucide-react";
+import { AssistantMessage } from "./assistantmessage";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -79,10 +80,19 @@ function MessageBubble({ message }: { message: Message }) {
           isUser ? "bg-primary text-primary-foreground ml-auto" : "bg-muted",
         )}
       >
-        {/* Using <pre> with font-sans preserves newlines while looking normal */}
-        <pre className="whitespace-pre-wrap text-sm font-sans">
-          {message.content}
-        </pre>
+        {isUser ? (
+          // User messages are plain text
+          <pre className="whitespace-pre-wrap text-sm font-sans">
+            {message.content}
+          </pre>
+        ) : (
+          // Assistant messages are parsed structured JSON
+          <AssistantMessage content={message.content} />
+
+          // <pre className="whitespace-pre-wrap text-sm font-sans">
+          //   {message.content}
+          // </pre>
+        )}
       </div>
     </div>
   );

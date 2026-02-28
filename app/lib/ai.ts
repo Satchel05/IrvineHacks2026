@@ -227,7 +227,7 @@ export async function* queryDatabaseStream(
   while (true) {
     // Start a streaming request to Claude
     const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5',
       max_tokens: 4096,
       tools,
       system: systemPrompt,
