@@ -14,7 +14,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Database,
   Home,
@@ -71,34 +71,61 @@ function InlineRenameInput({
   value,
   onSave,
   onCancel,
+  onDeleteClick,
 }: {
   value: string;
   onSave: (title: string) => void;
   onCancel: () => void;
+  onDeleteClick?: () => void;
 }) {
   const [draft, setDraft] = useState(value);
+  const deletePendingRef = useRef(false);
 
   /** Save the trimmed draft, or cancel if it's empty. */
   const commit = () => {
+    // If delete was clicked, don't commit - the delete handler will run
+    if (deletePendingRef.current) return;
     const trimmed = draft.trim();
     if (trimmed) onSave(trimmed);
     else onCancel();
   };
 
   return (
-    <Input
-      value={draft}
-      autoFocus
-      onClick={(e) => e.stopPropagation()}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === "Enter") commit();
-        if (e.key === "Escape") onCancel();
-      }}
-      className="h-7"
-    />
+    <>
+      <Input
+        value={draft}
+        autoFocus
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") onCancel();
+        }}
+        className="h-7 flex-1"
+      />
+      {/* Inline delete button while editing */}
+      {onDeleteClick && (
+        <div
+          role="button"
+          tabIndex={0}
+          className="h-5 w-5 flex items-center justify-center rounded-md hover:bg-accent ml-1"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            deletePendingRef.current = true;
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDeleteClick();
+          }}
+        >
+          <Trash2 className="h-3 w-3" />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -169,7 +196,10 @@ function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {sorted.length === 0 ? (
-                <p className="px-2 text-sm text-muted-foreground">
+                <p
+                  key="empty-state"
+                  className="px-2 text-sm text-muted-foreground"
+                >
                   No chats yet
                 </p>
               ) : (
@@ -191,6 +221,10 @@ function AppSidebar() {
                             setEditingId(null);
                           }}
                           onCancel={() => setEditingId(null)}
+                          onDeleteClick={() => {
+                            setEditingId(null);
+                            remove(session.id);
+                          }}
                         />
                       ) : (
                         <span
@@ -205,24 +239,32 @@ function AppSidebar() {
                         </span>
                       )}
 
-                      {/* Trash icon — only visible on hover (via group-hover) */}
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        className="h-5 w-5 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          remove(session.id);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
+                      {/* Trash icon — only visible on hover (via group-hover), hidden when editing */}
+                      {editingId !== session.id && (
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="h-5 w-5 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent"
+                          onClick={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
                             remove(session.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </div>
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              remove(session.id);
+                            }
+                          }}
+                          onMouseDown={(e) => {
+                            // Prevent focus change that might trigger blur handlers
+                            e.preventDefault();
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </div>
+                      )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))

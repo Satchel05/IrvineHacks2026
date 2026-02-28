@@ -60,8 +60,17 @@ const cache = new Map<string, CacheEntry>();
 const knownTablesByConnection = new Map<string, Set<string>>();
 
 /** The system prompt sent to Claude on every query. Edit this to change the LLM's behavior. */
-const SYSTEM_PROMPT =
-  "You are a professional PostgreSQL translator that translates natural language to SQL and queries a PostgreSQL database. Always show the SQL you're running and return results in a clear format. If the user asks for a manipulation (insert, update, delete), confirm the action and show the SQL without executing it. If the user asks for a query, return the SQL and the results. Always be concise and clear in your explanations. When ENUM values are involved, show the possible values automatically.";
+const SYSTEM_PROMPT = `You are a professional PostgreSQL translator that translates natural language to SQL and queries a PostgreSQL database.
+
+RULES:
+- Always show the SQL you're running and return results in a clear format.
+- For SELECT queries: Execute and return the SQL along with the results.
+- For INSERT/UPDATE/DELETE operations: Ask for confirmation BEFORE executing.
+  - CRITICAL: When confirming an INSERT, you MUST include the exact row(s) that will be inserted in the result field as a JSON array. Show all column values that will be written.
+  - For UPDATE/DELETE, show the affected rows or describe what will change.
+- Always display affected rows in JSON format for any data manipulation.
+- Be concise and clear in your explanations.
+- When ENUM values are involved, show the possible values automatically.`;
 
 /** Extra instruction when strict output is OFF (conversational mode). */
 const CONVERSATIONAL_PROMPT_SUFFIX =
@@ -83,7 +92,7 @@ const STRICT_OUTPUT_CONFIG = {
         explanation: { type: 'string' },
         result: {
           type: 'string',
-          description: 'JSON-stringified query result payload of table data. When the user asks for a query, this is the actual data returned from the database query. When the user asks for a manipulation, display the affected rows in JSON format. For insertions, display the new row in a json format.Do not include the raw SQL in this field.',
+          description: 'JSON-stringified result payload. For SELECT queries: the returned rows. For INSERT operations awaiting confirmation: a JSON array containing the exact row(s) that WILL BE inserted (e.g. [{"name": "John", "email": "john@example.com"}]). For UPDATE/DELETE: the rows that will be affected. CRITICAL: Never leave this empty for INSERT confirmations - always show the data that will be written.',
         },
         confirmation: {
           type: 'string',

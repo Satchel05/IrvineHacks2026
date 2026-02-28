@@ -70,13 +70,19 @@ function Avatar({ isUser }: { isUser: boolean }) {
 function MessageBubble({
   message,
   onConfirm,
+  onConfirmationStateChange,
+  onDecisionPersist,
 }: {
   message: Message;
   onConfirm?: (accepted: boolean) => void;
+  onConfirmationStateChange?: (messageId: string, pending: boolean) => void;
+  onDecisionPersist?: (decision: "accepted" | "rejected") => void;
 }) {
   const isUser = message.role === "user";
   return (
-    <div className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}>
+    <div
+      className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}
+    >
       <Avatar isUser={isUser} />
       <div
         className={cn(
@@ -85,10 +91,18 @@ function MessageBubble({
         )}
       >
         {isUser ? (
-          <pre className="whitespace-pre-wrap text-sm font-sans">{message.content}</pre>
+          <pre className="whitespace-pre-wrap text-sm font-sans">
+            {message.content}
+          </pre>
         ) : (
-          <AssistantMessage content={message.content} onConfirm={onConfirm} />
-          // <pre className="whitespace-pre-wrap text-sm font-sans">{message.content}</pre>
+          <AssistantMessage
+            content={message.content}
+            onConfirm={onConfirm}
+            onConfirmationStateChange={(pending) =>
+              onConfirmationStateChange?.(message.id, pending)
+            }
+            onDecisionPersist={onDecisionPersist}
+          />
         )}
       </div>
     </div>
@@ -152,6 +166,9 @@ function SchemaLoadingState() {
 export function Chat({ connectionString }: ChatProps) {
   const [input, setInput] = useState("");
   const [schemaLoading, setSchemaLoading] = useState(false);
+  const [pendingConfirmationIds, setPendingConfirmationIds] = useState<
+    Set<string>
+  >(() => new Set());
   /** Ref attached to an invisible div at the bottom of the messages list (for auto-scroll). */
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -167,6 +184,7 @@ export function Chat({ connectionString }: ChatProps) {
 
   const messages = session?.messages ?? [];
   const isLoading = session?.isLoading ?? false;
+  const hasPendingConfirmation = pendingConfirmationIds.size > 0;
 
   // ── Auto-scroll to bottom when new messages arrive or content changes ───
   const lastContent = messages.at(-1)?.content;
@@ -262,57 +280,149 @@ export function Chat({ connectionString }: ChatProps) {
    *     as each chunk arrives (gives the user real-time feedback)
    *  6. On error, add an error message; always clear `isLoading`
    */
-  const sendMessage = useCallback(async (text: string) => {
-  if (!text.trim() || !activeId || isLoading) return;
+  const sendMessage = useCallback(
+    async (text: string, options?: { ignorePendingLock?: boolean }) => {
+      if (!text.trim() || !activeId || isLoading) return;
+      if (hasPendingConfirmation && !options?.ignorePendingLock) return;
 
-  addMessage(activeId, { role: "user", content: text });
-  setLoading(activeId, true);
+      addMessage(activeId, { role: "user", content: text });
+      setLoading(activeId, true);
 
-  try {
-    const current = useChatStore.getState().sessions[activeId];
-    const history =
-      current?.messages.map((m) => ({ role: m.role, content: m.content })) ?? [];
+      try {
+        const current = useChatStore.getState().sessions[activeId];
+        const history =
+          current?.messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })) ?? [];
 
-    const res = await fetch("/api/query", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ connectionString, messages: history }),
-    });
+        const res = await fetch("/api/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ connectionString, messages: history }),
+        });
 
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Something went wrong");
-    }
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Something went wrong");
+        }
 
-    const asstMsg = addMessage(activeId, { role: "assistant", content: "" });
-    const reader = res.body?.getReader();
-    if (!reader) throw new Error("No response body");
+        const asstMsg = addMessage(activeId, {
+          role: "assistant",
+          content: "",
+        });
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No response body");
 
-    const decoder = new TextDecoder();
-    let accumulated = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      accumulated += decoder.decode(value, { stream: true });
-      updateMessage(activeId, asstMsg.id, accumulated);
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Something went wrong";
-    addMessage(activeId, { role: "assistant", content: `Error: ${msg}` });
-  } finally {
-    setLoading(activeId, false);
-  }
-}, [activeId, isLoading, connectionString, addMessage, updateMessage, setLoading]);
+        const decoder = new TextDecoder();
+        let accumulated = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          accumulated += decoder.decode(value, { stream: true });
+          updateMessage(activeId, asstMsg.id, accumulated);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Something went wrong";
+        addMessage(activeId, { role: "assistant", content: `Error: ${msg}` });
+      } finally {
+        setLoading(activeId, false);
+      }
+    },
+    [
+      activeId,
+      isLoading,
+      hasPendingConfirmation,
+      connectionString,
+      addMessage,
+      updateMessage,
+      setLoading,
+    ],
+  );
 
-// Keep the form's onSubmit as a thin wrapper
-const send = async (e: React.FormEvent) => {
-  e.preventDefault();
-  const text = input.trim();
-  if (!text) return;
-  setInput("");
-  await sendMessage(text);
-};
+  // Keep the form's onSubmit as a thin wrapper
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (hasPendingConfirmation) return;
+    const text = input.trim();
+    if (!text) return;
+    setInput("");
+    await sendMessage(text);
+  };
 
+  const handleConfirmationStateChange = useCallback(
+    (messageId: string, pending: boolean) => {
+      setPendingConfirmationIds((prev) => {
+        const next = new Set(prev);
+        if (pending) next.add(messageId);
+        else next.delete(messageId);
+        return next;
+      });
+    },
+    [],
+  );
+
+  /**
+   * Persist the user's Accept/Reject decision into the message content.
+   * This injects `confirmation_decision` into the JSON so it survives page reloads.
+   * Handles multiple JSON objects by updating all of them.
+   */
+  const handleDecisionPersist = useCallback(
+    (messageId: string, decision: "accepted" | "rejected") => {
+      if (!activeId) return;
+      // Read fresh messages from store to avoid stale closure
+      const currentSession = useChatStore.getState().sessions[activeId];
+      const msg = currentSession?.messages.find((m) => m.id === messageId);
+      if (!msg) return;
+
+      let content = msg.content;
+      let modified = false;
+
+      // Find all balanced JSON objects and inject confirmation_decision
+      let depth = 0;
+      let start = -1;
+      const segments: { start: number; end: number; json: string }[] = [];
+
+      for (let i = 0; i < content.length; i++) {
+        if (content[i] === "{") {
+          if (depth === 0) start = i;
+          depth++;
+        } else if (content[i] === "}") {
+          depth--;
+          if (depth === 0 && start !== -1) {
+            segments.push({
+              start,
+              end: i + 1,
+              json: content.slice(start, i + 1),
+            });
+            start = -1;
+          }
+        }
+      }
+
+      // Process segments in reverse order so indices stay valid
+      for (let i = segments.length - 1; i >= 0; i--) {
+        const seg = segments[i];
+        try {
+          const parsed = JSON.parse(seg.json);
+          if (parsed && typeof parsed === "object") {
+            parsed.confirmation_decision = decision;
+            const newJson = JSON.stringify(parsed);
+            content =
+              content.slice(0, seg.start) + newJson + content.slice(seg.end);
+            modified = true;
+          }
+        } catch {
+          // Not valid JSON, skip
+        }
+      }
+
+      if (modified) {
+        updateMessage(activeId, messageId, content);
+      }
+    },
+    [activeId, updateMessage],
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -339,18 +449,23 @@ const send = async (e: React.FormEvent) => {
         ) : (
           <div className="space-y-2">
             {messages.map((m) => (
-  <MessageBubble
-    key={m.id}
-    message={m}
-    onConfirm={(accepted) =>
-      sendMessage(
-        accepted
-          ? "Yes, confirmed. Please proceed with the operation."
-          : "No, cancel the operation. Do not execute it.",
-      )
-    }
-  />
-))}
+              <MessageBubble
+                key={m.id}
+                message={m}
+                onConfirmationStateChange={handleConfirmationStateChange}
+                onDecisionPersist={(decision) =>
+                  handleDecisionPersist(m.id, decision)
+                }
+                onConfirm={(accepted) =>
+                  sendMessage(
+                    accepted
+                      ? "Yes, confirmed. Please proceed with the operation."
+                      : "No, cancel the operation. Do not execute it.",
+                    { ignorePendingLock: true },
+                  )
+                }
+              />
+            ))}
             {isLoading && <ThinkingIndicator />}
             {/* Invisible anchor for auto-scrolling */}
             <div ref={bottomRef} />
@@ -382,19 +497,21 @@ const send = async (e: React.FormEvent) => {
             placeholder="Ask about your database..."
             rows={2}
             className="resize-none"
-            disabled={isLoading}
+            disabled={isLoading || hasPendingConfirmation}
           />
           <Button
             type="submit"
             size="icon"
             className="h-auto"
-            disabled={isLoading || !input.trim()}
+            disabled={isLoading || hasPendingConfirmation || !input.trim()}
           >
             <Send className="h-4 w-4" />
           </Button>
         </form>
         <p className="text-xs text-muted-foreground mt-2">
-          Press Enter to send, Shift+Enter for new line
+          {hasPendingConfirmation
+            ? "Please Accept or Reject the pending confirmation before sending a new message"
+            : "Press Enter to send, Shift+Enter for new line"}
         </p>
       </div>
     </div>
