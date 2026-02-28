@@ -61,7 +61,7 @@ const knownTablesByConnection = new Map<string, Set<string>>();
 
 /** The system prompt sent to Claude on every query. Edit this to change the LLM's behavior. */
 const SYSTEM_PROMPT =
-  "You are a helpful assistant that translates natural language to SQL and queries a PostgreSQL database. Always show the SQL you're running and return results in a clear format.";
+  "You are a professional PostgreSQL translator that translates natural language to SQL and queries a PostgreSQL database. Always show the SQL you're running and return results in a clear format. If the user asks for a manipulation (insert, update, delete), confirm the action and show the SQL without executing it. If the user asks for a query, return the SQL and the results. Always be concise and clear in your explanations. When ENUM values are involved, show the possible values automatically.";
 
 /** Extra instruction when strict output is OFF (conversational mode). */
 const CONVERSATIONAL_PROMPT_SUFFIX =
@@ -83,12 +83,12 @@ const STRICT_OUTPUT_CONFIG = {
         explanation: { type: 'string' },
         result: {
           type: 'string',
-          description: 'JSON-stringified query result payload of table data.',
+          description: 'JSON-stringified query result payload of table data. When the user asks for a query, this is the actual data returned from the database query. When the user asks for a manipulation, display the affected rows in JSON format. For insertions, display the new row in a json format.Do not include the raw SQL in this field.',
         },
         confirmation: {
           type: 'string',
           description:
-            'Confirmation message for the user with number of rows returned or affected describing what they\'d need to know to proceed. Do not include the raw SQL or result data in this field.',
+            'Confirmation message for the user with number of rows returned or affected describing what quite simply will change and what the user should expect. Do not include the raw SQL or data in this field.',
         },
       },
       required: ['sql', 'explanation', 'result', 'confirmation'],
@@ -229,12 +229,12 @@ export async function* queryDatabaseStream(
   while (true) {
     // Start a streaming request to Claude
     const stream = anthropic.messages.stream({
-      model: 'claude-haiku-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       tools,
       system: systemPrompt,
       messages,
-      ...(useStrictOutput ? { output_config: STRICT_OUTPUT_CONFIG } : {}),
+      output_config: STRICT_OUTPUT_CONFIG ,
     });
 
     // Yield text chunks as they arrive from the stream
