@@ -1,12 +1,12 @@
 // app/api/query/route.ts
-import { queryDatabase } from '../../lib/ai';
+import { queryDatabase, ChatMessage } from '../../lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
-  const { message, connectionString } = await req.json();
+  const { messages, connectionString } = await req.json();
 
-  if (!message) {
-    return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return NextResponse.json({ error: 'Messages array is required' }, { status: 400 });
   }
 
   if (!connectionString) {
@@ -16,6 +16,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const result = await queryDatabase(message, connectionString);
+  const result = await queryDatabase(messages as ChatMessage[], connectionString);
   return NextResponse.json({ result });
 }

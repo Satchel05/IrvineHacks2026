@@ -39,13 +39,25 @@ async function getMCPClient(connectionString: string) {
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
 export async function queryDatabase(
-  userMessage: string,
+  chatHistory: ChatMessage[],
   connectionString: string,
 ) {
   const { mcpClient, anthropicTools } = await getMCPClient(connectionString);
 
-  const messages: any[] = [{ role: 'user', content: userMessage }];
+  // Convert chat history to Anthropic message format
+  // Filter out 'system' messages as Anthropic handles system prompt separately
+  const messages: any[] = chatHistory
+    .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+    .map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }));
 
   while (true) {
     const response = await anthropic.messages.create({

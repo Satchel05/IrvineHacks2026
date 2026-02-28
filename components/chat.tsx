@@ -1,38 +1,35 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { useChatStore, type Message } from '@/app/store/chatStore';
-import { Send, User, Bot, Loader2, Database } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useChatStore, type Message } from "@/app/store/chatStore";
+import { Send, User, Bot, Loader2, Database } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ChatProps {
   connectionString: string;
 }
 
 function MessageBubble({ message }: { message: Message }) {
-  const isUser = message.role === 'user';
+  const isUser = message.role === "user";
 
   return (
     <div
-      className={cn(
-        'flex gap-3 p-4',
-        isUser ? 'flex-row-reverse' : 'flex-row'
-      )}
+      className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}
     >
       <div
         className={cn(
-          'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
-          isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+          isUser ? "bg-primary text-primary-foreground" : "bg-muted",
         )}
       >
         {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
       </div>
       <div
         className={cn(
-          'flex-1 rounded-lg px-4 py-2 max-w-[80%]',
-          isUser ? 'bg-primary text-primary-foreground ml-auto' : 'bg-muted'
+          "flex-1 rounded-lg px-4 py-2 max-w-[80%]",
+          isUser ? "bg-primary text-primary-foreground ml-auto" : "bg-muted",
         )}
       >
         <pre className="whitespace-pre-wrap text-sm font-sans">
@@ -44,7 +41,7 @@ function MessageBubble({ message }: { message: Message }) {
 }
 
 export function Chat({ connectionString }: ChatProps) {
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [schemaLoading, setSchemaLoading] = useState(false);
   const [schemaLoaded, setSchemaLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -52,7 +49,7 @@ export function Chat({ connectionString }: ChatProps) {
 
   const activeSessionId = useChatStore((s) => s.activeSessionId);
   const activeSession = useChatStore((s) =>
-    s.activeSessionId ? s.sessions[s.activeSessionId] : null
+    s.activeSessionId ? s.sessions[s.activeSessionId] : null,
   );
   const addMessage = useChatStore((s) => s.addMessage);
   const setLoading = useChatStore((s) => s.setLoading);
@@ -63,7 +60,7 @@ export function Chat({ connectionString }: ChatProps) {
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
   // Create a session if none exists
@@ -75,7 +72,11 @@ export function Chat({ connectionString }: ChatProps) {
 
   // Fetch schema on connection
   const fetchSchema = useCallback(async () => {
-    if (!connectionString || !activeSessionId || schemaFetchedRef.current === connectionString) {
+    if (
+      !connectionString ||
+      !activeSessionId ||
+      schemaFetchedRef.current === connectionString
+    ) {
       return;
     }
 
@@ -83,32 +84,32 @@ export function Chat({ connectionString }: ChatProps) {
     schemaFetchedRef.current = connectionString;
 
     try {
-      const response = await fetch('/api/schema', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/schema", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ connectionString }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch schema');
+        throw new Error(data.error || "Failed to fetch schema");
       }
 
       const tableCount = data.schema?.tables?.length || 0;
-      const tableNames = data.schema?.tables?.slice(0, 5).join(', ') || 'none';
-      const moreText = tableCount > 5 ? ` and ${tableCount - 5} more` : '';
+      const tableNames = data.schema?.tables?.slice(0, 5).join(", ") || "none";
+      const moreText = tableCount > 5 ? ` and ${tableCount - 5} more` : "";
 
       addMessage(activeSessionId, {
-        role: 'assistant',
-        content: `🎉 **Schema learned successfully!**\n\nI've analyzed your database and found **${tableCount} table${tableCount !== 1 ? 's' : ''}**: ${tableNames}${moreText}.\n\nI'm ready to help you query your data! Try asking questions like:\n- "Show me all records from [table_name]"\n- "What columns are in [table_name]?"\n- "Find the top 10 most recent entries"`,
+        role: "assistant",
+        content: `🎉 **Schema learned successfully!**\n\nI've analyzed your database and found **${tableCount} table${tableCount !== 1 ? "s" : ""}**: ${tableNames}${moreText}.\n\nI'm ready to help you query your data! Try asking questions like:\n- "Show me all records from [table_name]"\n- "What columns are in [table_name]?"\n- "Find the top 10 most recent entries"`,
       });
 
       setSchemaLoaded(true);
     } catch (error) {
       addMessage(activeSessionId, {
-        role: 'assistant',
-        content: `⚠️ **Could not load schema**: ${error instanceof Error ? error.message : 'Unknown error'}\n\nYou can still ask questions, but I may need to discover your tables as we go.`,
+        role: "assistant",
+        content: `⚠️ **Could not load schema**: ${error instanceof Error ? error.message : "Unknown error"}\n\nYou can still ask questions, but I may need to discover your tables as we go.`,
       });
       schemaFetchedRef.current = null;
     } finally {
@@ -127,11 +128,11 @@ export function Chat({ connectionString }: ChatProps) {
     if (!input.trim() || !activeSessionId || isLoading) return;
 
     const userMessage = input.trim();
-    setInput('');
+    setInput("");
 
     // Add user message
     addMessage(activeSessionId, {
-      role: 'user',
+      role: "user",
       content: userMessage,
     });
 
@@ -139,32 +140,40 @@ export function Chat({ connectionString }: ChatProps) {
     setLoading(activeSessionId, true);
 
     try {
-      const response = await fetch('/api/query', {
-        method: 'POST',
+      // Get the full conversation history including the new message
+      const currentSession = useChatStore.getState().sessions[activeSessionId];
+      const allMessages =
+        currentSession?.messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })) || [];
+
+      const response = await fetch("/api/query", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           connectionString,
-          message: userMessage,
+          messages: allMessages,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Something went wrong');
+        throw new Error(data.error || "Something went wrong");
       }
 
       // Add assistant response
       addMessage(activeSessionId, {
-        role: 'assistant',
+        role: "assistant",
         content: data.result,
       });
     } catch (error) {
       addMessage(activeSessionId, {
-        role: 'assistant',
-        content: `Error: ${error instanceof Error ? error.message : 'Something went wrong'}`,
+        role: "assistant",
+        content: `Error: ${error instanceof Error ? error.message : "Something went wrong"}`,
       });
     } finally {
       setLoading(activeSessionId, false);
@@ -172,7 +181,7 @@ export function Chat({ connectionString }: ChatProps) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
     }
@@ -209,7 +218,8 @@ export function Chat({ connectionString }: ChatProps) {
               <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Start a conversation by typing a message below.</p>
               <p className="text-sm mt-2">
-                Ask questions about your PostgreSQL database in natural language.
+                Ask questions about your PostgreSQL database in natural
+                language.
               </p>
             </div>
           </div>
