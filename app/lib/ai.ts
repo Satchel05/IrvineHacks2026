@@ -126,22 +126,24 @@ function shouldUseStrictOutput(
     /^(hi|hello|hey|yo|sup|howdy|good\s+(morning|afternoon|evening)|how are you|what'?s up|thanks|thank you|cool|nice|ok|okay)[!.?\s]*$/i;
   if (conversationalOnly.test(lastUser)) return false;
 
-  // If the user explicitly mentions a known table name, force strict mode.
-  // Example: "providers please" should still be treated as a DB/task request.
+  // If the user mentions a known table name (including naive plural with 's'),
+  // force strict mode regardless of other heuristics.
+  // Example: "providers please", "give me 5 quotas" both match table names.
   if (knownTables?.size) {
-    const normalized = lastUser
+    const tokens = lastUser
       .toLowerCase()
       .replace(/[^a-z0-9_\s]/g, ' ')
       .split(/\s+/)
       .filter(Boolean);
-    const terms = new Set(normalized);
-    for (const table of knownTables) {
-      if (terms.has(table)) return true;
+    for (const token of tokens) {
+      // Exact match OR strip trailing 's'/'es' to handle common plurals
+      const singular = token.replace(/(?:es|s)$/, '');
+      if (knownTables.has(token) || knownTables.has(singular)) return true;
     }
   }
 
   const taskLike =
-    /\b(sql|query|select|insert|update|delete|table|tables|rows|column|columns|schema|database|db|count|join|where|group by|order by|limit|show|list|find|get)\b/i;
+    /\b(sql|query|select|insert|update|delete|table|tables|rows|column|columns|schema|database|db|count|join|where|group\s+by|order\s+by|limit|show|list|find|get|give|fetch|pull|retrieve|return|display|how\s+many|what\s+is|what\s+are|tell\s+me)\b/i;
   const conversational =
     /\b(hi|hello|hey|how are you|thanks|thank you|good morning|good evening|who are you|what can you do|help me understand)\b/i;
 
