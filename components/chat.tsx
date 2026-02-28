@@ -16,15 +16,15 @@
  *    a markdown library (e.g. react-markdown).
  */
 
-"use client";
+'use client';
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { useChatStore, type Message } from "@/app/store/chatStore";
-import { Send, User, Bot, Loader2, Database } from "lucide-react";
-import { AssistantMessage } from "./assistantmessage";
-import { cn } from "@/lib/utils";
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { useChatStore, type Message } from '@/app/store/chatStore';
+import { Send, User, Bot, Loader2, Database } from 'lucide-react';
+import { AssistantMessage } from './assistantmessage';
+import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,11 +54,12 @@ function Avatar({ isUser }: { isUser: boolean }) {
   return (
     <div
       className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-        isUser ? "bg-primary text-primary-foreground" : "bg-muted",
-      )}
-    >
-      {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+        'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+        isUser ? 'bg-primary text-primary-foreground' : 'bg-muted',
+      )}>
+      {isUser ?
+        <User className='h-4 w-4' />
+      : <Bot className='h-4 w-4' />}
     </div>
   );
 }
@@ -76,26 +77,26 @@ function MessageBubble({
   message: Message;
   onConfirm?: (accepted: boolean) => void;
   onConfirmationStateChange?: (messageId: string, pending: boolean) => void;
-  onDecisionPersist?: (decision: "accepted" | "rejected") => void;
+  onDecisionPersist?: (decision: 'accepted' | 'rejected') => void;
 }) {
-  const isUser = message.role === "user";
+  const isUser = message.role === 'user';
   return (
     <div
-      className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}
-    >
+      className={cn(
+        'flex gap-3 p-4',
+        isUser ? 'flex-row-reverse' : 'flex-row',
+      )}>
       <Avatar isUser={isUser} />
       <div
         className={cn(
-          "flex-1 rounded-lg px-4 py-2 max-w-[80%]",
-          isUser ? "bg-primary text-primary-foreground ml-auto" : "bg-muted",
-        )}
-      >
-        {isUser ? (
-          <pre className="whitespace-pre-wrap text-sm font-sans">
+          'flex-1 rounded-lg px-4 py-2 max-w-[80%]',
+          isUser ? 'bg-primary text-primary-foreground ml-auto' : 'bg-muted',
+        )}>
+        {isUser ?
+          <pre className='whitespace-pre-wrap text-sm font-sans'>
             {message.content}
           </pre>
-        ) : (
-          <AssistantMessage
+        : <AssistantMessage
             content={message.content}
             onConfirm={onConfirm}
             onConfirmationStateChange={(pending) =>
@@ -103,7 +104,7 @@ function MessageBubble({
             }
             onDecisionPersist={onDecisionPersist}
           />
-        )}
+        }
       </div>
     </div>
   );
@@ -112,11 +113,11 @@ function MessageBubble({
 /** Shown while the LLM is processing (after user sends, before response arrives). */
 function ThinkingIndicator() {
   return (
-    <div className="flex gap-3 p-4">
+    <div className='flex gap-3 p-4'>
       <Avatar isUser={false} />
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <span className="text-sm">Thinking...</span>
+      <div className='flex items-center gap-2 text-muted-foreground'>
+        <Loader2 className='h-4 w-4 animate-spin' />
+        <span className='text-sm'>Thinking...</span>
       </div>
     </div>
   );
@@ -125,11 +126,11 @@ function ThinkingIndicator() {
 /** Placeholder shown when the session has no messages yet. */
 function EmptyState() {
   return (
-    <div className="flex-1 flex items-center justify-center h-full min-h-75 text-muted-foreground">
-      <div className="text-center">
-        <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
+    <div className='flex-1 flex items-center justify-center h-full min-h-75 text-muted-foreground'>
+      <div className='text-center'>
+        <Bot className='h-12 w-12 mx-auto mb-4 opacity-50' />
         <p>Start a conversation by typing a message below.</p>
-        <p className="text-sm mt-2">
+        <p className='text-sm mt-2'>
           Ask questions about your PostgreSQL database in natural language.
         </p>
       </div>
@@ -140,12 +141,12 @@ function EmptyState() {
 /** Full-screen loading state shown while fetching schema for the first time. */
 function SchemaLoadingState() {
   return (
-    <div className="flex-1 flex items-center justify-center text-muted-foreground">
-      <div className="text-center">
-        <Database className="h-12 w-12 mx-auto mb-4 animate-pulse" />
-        <p className="font-medium">Learning your database schema...</p>
-        <p className="text-sm mt-2">This may take a few seconds</p>
-        <Loader2 className="h-5 w-5 mx-auto mt-4 animate-spin" />
+    <div className='flex-1 flex items-center justify-center text-muted-foreground'>
+      <div className='text-center'>
+        <Database className='h-12 w-12 mx-auto mb-4 animate-pulse' />
+        <p className='font-medium'>Learning your database schema...</p>
+        <p className='text-sm mt-2'>This may take a few seconds</p>
+        <Loader2 className='h-5 w-5 mx-auto mt-4 animate-spin' />
       </div>
     </div>
   );
@@ -164,7 +165,7 @@ function SchemaLoadingState() {
  *     response back, updating the assistant message in real time.
  */
 export function Chat({ connectionString }: ChatProps) {
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
   const [schemaLoading, setSchemaLoading] = useState(false);
   const [pendingConfirmationIds, setPendingConfirmationIds] = useState<
     Set<string>
@@ -189,7 +190,7 @@ export function Chat({ connectionString }: ChatProps) {
   // ── Auto-scroll to bottom when new messages arrive or content changes ───
   const lastContent = messages.at(-1)?.content;
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, lastContent]);
 
   // ── Create a default session if none exists (first visit) ───────────────
@@ -220,37 +221,37 @@ export function Chat({ connectionString }: ChatProps) {
     setSchemaLoading(true);
 
     try {
-      const res = await fetch("/api/schema", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/schema', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connectionString }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to fetch schema");
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch schema');
 
       // Build a friendly summary message
       const tables: string[] = data.schema?.tables ?? [];
-      const preview = tables.slice(0, 5).join(", ") || "none";
-      const more = tables.length > 5 ? ` and ${tables.length - 5} more` : "";
+      const preview = tables.slice(0, 5).join(', ') || 'none';
+      const more = tables.length > 5 ? ` and ${tables.length - 5} more` : '';
 
       addMessage(activeId, {
-        role: "assistant",
+        role: 'assistant',
         content: [
           `🎉 **Schema learned successfully!**`,
           ``,
-          `I've analyzed your database and found **${tables.length} table${tables.length !== 1 ? "s" : ""}**: ${preview}${more}.`,
+          `I've analyzed your database and found **${tables.length} table${tables.length !== 1 ? 's' : ''}**: ${preview}${more}.`,
           ``,
           `I'm ready to help you query your data! Try asking questions like:`,
           `- "Show me all records from [table_name]"`,
           `- "What columns are in [table_name]?"`,
           `- "Find the top 10 most recent entries"`,
-        ].join("\n"),
+        ].join('\n'),
       });
       schemaDone.add(key); // Mark as done — won't fetch again
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
+      const msg = err instanceof Error ? err.message : 'Unknown error';
       addMessage(activeId, {
-        role: "assistant",
+        role: 'assistant',
         content: `⚠️ **Could not load schema**: ${msg}\n\nYou can still ask questions, but I may need to discover your tables as we go.`,
       });
       schemaDone.delete(key); // Allow retry on next mount
@@ -285,7 +286,7 @@ export function Chat({ connectionString }: ChatProps) {
       if (!text.trim() || !activeId || isLoading) return;
       if (hasPendingConfirmation && !options?.ignorePendingLock) return;
 
-      addMessage(activeId, { role: "user", content: text });
+      addMessage(activeId, { role: 'user', content: text });
       setLoading(activeId, true);
 
       try {
@@ -296,26 +297,26 @@ export function Chat({ connectionString }: ChatProps) {
             content: m.content,
           })) ?? [];
 
-        const res = await fetch("/api/query", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch('/api/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ connectionString, messages: history }),
         });
 
         if (!res.ok) {
           const data = await res.json();
-          throw new Error(data.error || "Something went wrong");
+          throw new Error(data.error || 'Something went wrong');
         }
 
         const asstMsg = addMessage(activeId, {
-          role: "assistant",
-          content: "",
+          role: 'assistant',
+          content: '',
         });
         const reader = res.body?.getReader();
-        if (!reader) throw new Error("No response body");
+        if (!reader) throw new Error('No response body');
 
         const decoder = new TextDecoder();
-        let accumulated = "";
+        let accumulated = '';
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -323,8 +324,8 @@ export function Chat({ connectionString }: ChatProps) {
           updateMessage(activeId, asstMsg.id, accumulated);
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Something went wrong";
-        addMessage(activeId, { role: "assistant", content: `Error: ${msg}` });
+        const msg = err instanceof Error ? err.message : 'Something went wrong';
+        addMessage(activeId, { role: 'assistant', content: `Error: ${msg}` });
       } finally {
         setLoading(activeId, false);
       }
@@ -346,7 +347,7 @@ export function Chat({ connectionString }: ChatProps) {
     if (hasPendingConfirmation) return;
     const text = input.trim();
     if (!text) return;
-    setInput("");
+    setInput('');
     await sendMessage(text);
   };
 
@@ -368,7 +369,7 @@ export function Chat({ connectionString }: ChatProps) {
    * Handles multiple JSON objects by updating all of them.
    */
   const handleDecisionPersist = useCallback(
-    (messageId: string, decision: "accepted" | "rejected") => {
+    (messageId: string, decision: 'accepted' | 'rejected') => {
       if (!activeId) return;
       // Read fresh messages from store to avoid stale closure
       const currentSession = useChatStore.getState().sessions[activeId];
@@ -384,10 +385,10 @@ export function Chat({ connectionString }: ChatProps) {
       const segments: { start: number; end: number; json: string }[] = [];
 
       for (let i = 0; i < content.length; i++) {
-        if (content[i] === "{") {
+        if (content[i] === '{') {
           if (depth === 0) start = i;
           depth++;
-        } else if (content[i] === "}") {
+        } else if (content[i] === '}') {
           depth--;
           if (depth === 0 && start !== -1) {
             segments.push({
@@ -405,7 +406,7 @@ export function Chat({ connectionString }: ChatProps) {
         const seg = segments[i];
         try {
           const parsed = JSON.parse(seg.json);
-          if (parsed && typeof parsed === "object") {
+          if (parsed && typeof parsed === 'object') {
             parsed.confirmation_decision = decision;
             const newJson = JSON.stringify(parsed);
             content =
@@ -429,7 +430,7 @@ export function Chat({ connectionString }: ChatProps) {
   // Edge case: no active session yet (createSession effect hasn't fired)
   if (!activeId) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+      <div className='flex-1 flex items-center justify-center text-muted-foreground'>
         <p>Creating new chat...</p>
       </div>
     );
@@ -441,13 +442,12 @@ export function Chat({ connectionString }: ChatProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className='flex flex-col h-full'>
       {/* ── Messages area ────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto">
-        {messages.length === 0 ? (
+      <div className='flex-1 overflow-y-auto'>
+        {messages.length === 0 ?
           <EmptyState />
-        ) : (
-          <div className="space-y-2">
+        : <div className='space-y-2'>
             {messages.map((m) => (
               <MessageBubble
                 key={m.id}
@@ -458,9 +458,9 @@ export function Chat({ connectionString }: ChatProps) {
                 }
                 onConfirm={(accepted) =>
                   sendMessage(
-                    accepted
-                      ? "Yes, confirmed. Please proceed with the operation."
-                      : "No, cancel the operation. Do not execute it.",
+                    accepted ?
+                      'Yes, confirmed. Please proceed with the operation.'
+                    : 'No, cancel the operation. Do not execute it.',
                     { ignorePendingLock: true },
                   )
                 }
@@ -470,48 +470,50 @@ export function Chat({ connectionString }: ChatProps) {
             {/* Invisible anchor for auto-scrolling */}
             <div ref={bottomRef} />
           </div>
-        )}
+        }
       </div>
 
       {/* ── Input area ───────────────────────────────────────────────────── */}
-      <div className="border-t p-4">
-        <div className="flex-1">
-  <button
-  onClick={() => sendMessage("Can you explain the SQL in more detail please?")}
-  className="px-2 py-2 bg-gray-300 text-white font-small rounded-lg shadow-md hover:bg-gray-400 active:scale-95 transition-all duration-200 ease-in-out"
->
-  Explain more
-</button>
-</div>
-        <form onSubmit={send} className="flex gap-2">
+      <div className='border-t p-4'>
+        <div className='flex-1'>
+          <button
+            onClick={() =>
+              sendMessage('Can you explain the SQL in more detail please?')
+            }
+            className='px-2 py-2 bg-gray-300 text-white font-small rounded-lg shadow-md hover:bg-gray-400 active:scale-95 transition-all duration-200 ease-in-out'>
+            Explain more
+          </button>
+        </div>
+        <form
+          onSubmit={send}
+          className='flex gap-2'>
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               // Enter sends; Shift+Enter inserts a newline
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 send(e);
               }
             }}
-            placeholder="Ask about your database..."
+            placeholder='Ask about your database...'
             rows={2}
-            className="resize-none"
+            className='resize-none'
             disabled={isLoading || hasPendingConfirmation}
           />
           <Button
-            type="submit"
-            size="icon"
-            className="h-auto"
-            disabled={isLoading || hasPendingConfirmation || !input.trim()}
-          >
-            <Send className="h-4 w-4" />
+            type='submit'
+            size='icon'
+            className='h-auto'
+            disabled={isLoading || hasPendingConfirmation || !input.trim()}>
+            <Send className='h-4 w-4' />
           </Button>
         </form>
-        <p className="text-xs text-muted-foreground mt-2">
-          {hasPendingConfirmation
-            ? "Please Accept or Reject the pending confirmation before sending a new message"
-            : "Press Enter to send, Shift+Enter for new line"}
+        <p className='text-xs text-muted-foreground mt-2'>
+          {hasPendingConfirmation ?
+            'Please Accept or Reject the pending confirmation before sending a new message'
+          : 'Press Enter to send, Shift+Enter for new line'}
         </p>
       </div>
     </div>

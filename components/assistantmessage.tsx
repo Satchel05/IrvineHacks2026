@@ -16,12 +16,14 @@
  * Non-JSON content (e.g. "🔧 Executing tool…") falls back to plain text.
  */
 
-"use client";
+'use client';
 
-import { useState, useMemo, useEffect, useRef } from "react";
-import { ChevronUp, ChevronDown, ChevronsUpDown, Check, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { ChevronUp, ChevronDown, ChevronsUpDown, Check, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import FancyCodeBlock from './FancyCodeBlock';
+import ReactMarkdown from 'react-markdown';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,10 +37,10 @@ interface StructuredResponse {
   confirmation_required?: boolean;
   user_confirmed?: boolean;
   /** UI-persisted decision (distinct from model's user_confirmed). */
-  confirmation_decision?: "accepted" | "rejected";
+  confirmation_decision?: 'accepted' | 'rejected';
 }
 
-type SortDirection = "asc" | "desc" | null;
+type SortDirection = 'asc' | 'desc' | null;
 interface SortState {
   column: string;
   direction: SortDirection;
@@ -61,7 +63,7 @@ export interface AssistantMessageProps {
    * Called to persist the decision in the message content.
    * The parent should update the stored message with this decision.
    */
-  onDecisionPersist?: (decision: "accepted" | "rejected") => void;
+  onDecisionPersist?: (decision: 'accepted' | 'rejected') => void;
 }
 
 // ─── SQL Code Block ───────────────────────────────────────────────────────────
@@ -75,19 +77,16 @@ function SqlBlock({ sql }: { sql: string }) {
     });
   };
   return (
-    <div className="rounded-md border bg-muted/50 overflow-hidden text-sm">
-      <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted text-muted-foreground text-xs font-mono">
+    <div className='rounded-md border bg-muted/50 overflow-hidden text-sm'>
+      <div className='flex items-center justify-between px-3 py-1.5 border-b bg-muted text-muted-foreground text-xs font-mono'>
         <span>SQL</span>
         <button
           onClick={copy}
-          className="hover:text-foreground transition-colors"
-        >
-          {copied ? "Copied!" : "Copy"}
+          className='hover:text-foreground transition-colors'>
+          {copied ? 'Copied!' : 'Copy'}
         </button>
       </div>
-      <pre className="px-4 py-3 overflow-x-auto font-mono text-sm leading-relaxed whitespace-pre">
-        {sql}
-      </pre>
+      <FancyCodeBlock language='sql'>{sql}</FancyCodeBlock>
     </div>
   );
 }
@@ -97,9 +96,8 @@ function SqlBlock({ sql }: { sql: string }) {
 function parseRows(result: string): Record<string, unknown>[] | null {
   try {
     const parsed = JSON.parse(result);
-    const rows: unknown = Array.isArray(parsed)
-      ? parsed
-      : (parsed?.rows ?? parsed?.data ?? null);
+    const rows: unknown =
+      Array.isArray(parsed) ? parsed : (parsed?.rows ?? parsed?.data ?? null);
     if (!Array.isArray(rows) || rows.length === 0) return null;
     return rows as Record<string, unknown>[];
   } catch {
@@ -108,7 +106,7 @@ function parseRows(result: string): Record<string, unknown>[] | null {
 }
 
 function ResultTable({ result }: { result: string }) {
-  const [sort, setSort] = useState<SortState>({ column: "", direction: null });
+  const [sort, setSort] = useState<SortState>({ column: '', direction: null });
   const rows = useMemo(() => parseRows(result), [result]);
 
   // Move sortedRows hook before any early returns to comply with Rules of Hooks
@@ -120,19 +118,20 @@ function ResultTable({ result }: { result: string }) {
       const aNum = Number(av),
         bNum = Number(bv);
       const numeric = !isNaN(aNum) && !isNaN(bNum);
-      const cmp = numeric
-        ? aNum - bNum
-        : String(av ?? "").localeCompare(String(bv ?? ""));
-      return sort.direction === "asc" ? cmp : -cmp;
+      const cmp =
+        numeric ?
+          aNum - bNum
+        : String(av ?? '').localeCompare(String(bv ?? ''));
+      return sort.direction === 'asc' ? cmp : -cmp;
     });
   }, [rows, sort]);
 
   if (!rows) {
     const trimmed = result?.trim();
-    if (!trimmed || trimmed === "null" || trimmed === "[]" || trimmed === "{}")
+    if (!trimmed || trimmed === 'null' || trimmed === '[]' || trimmed === '{}')
       return null;
     return (
-      <pre className="rounded-md border bg-muted/50 px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap">
+      <pre className='rounded-md border bg-muted/50 px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap'>
         {trimmed}
       </pre>
     );
@@ -141,34 +140,31 @@ function ResultTable({ result }: { result: string }) {
   const columns = Object.keys(rows[0]);
   const toggleSort = (col: string) =>
     setSort((prev) => {
-      if (prev.column !== col) return { column: col, direction: "asc" };
-      if (prev.direction === "asc") return { column: col, direction: "desc" };
-      return { column: "", direction: null };
+      if (prev.column !== col) return { column: col, direction: 'asc' };
+      if (prev.direction === 'asc') return { column: col, direction: 'desc' };
+      return { column: '', direction: null };
     });
 
   const SortIcon = ({ col }: { col: string }) => {
     if (sort.column !== col)
-      return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
-    return sort.direction === "asc" ? (
-      <ChevronUp className="h-3 w-3" />
-    ) : (
-      <ChevronDown className="h-3 w-3" />
-    );
+      return <ChevronsUpDown className='h-3 w-3 opacity-40' />;
+    return sort.direction === 'asc' ?
+        <ChevronUp className='h-3 w-3' />
+      : <ChevronDown className='h-3 w-3' />;
   };
 
   return (
-    <div className="rounded-md border overflow-hidden text-sm">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+    <div className='rounded-md border overflow-hidden text-sm'>
+      <div className='overflow-x-auto'>
+        <table className='w-full border-collapse'>
           <thead>
-            <tr className="bg-muted border-b">
+            <tr className='bg-muted border-b'>
               {columns.map((col) => (
                 <th
                   key={col}
                   onClick={() => toggleSort(col)}
-                  className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground select-none whitespace-nowrap"
-                >
-                  <span className="flex items-center gap-1">
+                  className='px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground select-none whitespace-nowrap'>
+                  <span className='flex items-center gap-1'>
                     {col} <SortIcon col={col} />
                   </span>
                 </th>
@@ -180,21 +176,17 @@ function ResultTable({ result }: { result: string }) {
               <tr
                 key={i}
                 className={cn(
-                  "border-b last:border-0 transition-colors hover:bg-muted/40",
-                  i % 2 === 0 ? "bg-background" : "bg-muted/20",
-                )}
-              >
+                  'border-b last:border-0 transition-colors hover:bg-muted/40',
+                  i % 2 === 0 ? 'bg-background' : 'bg-muted/20',
+                )}>
                 {columns.map((col) => (
                   <td
                     key={col}
-                    className="px-3 py-2 text-sm font-mono whitespace-nowrap max-w-[300px] truncate"
-                    title={row[col] == null ? "NULL" : String(row[col])}
-                  >
-                    {row[col] == null ? (
-                      <span className="text-muted-foreground italic">NULL</span>
-                    ) : (
-                      String(row[col])
-                    )}
+                    className='px-3 py-2 text-sm font-mono whitespace-nowrap max-w-[300px] truncate'
+                    title={row[col] == null ? 'NULL' : String(row[col])}>
+                    {row[col] == null ?
+                      <span className='text-muted-foreground italic'>NULL</span>
+                    : String(row[col])}
                   </td>
                 ))}
               </tr>
@@ -225,12 +217,12 @@ function ConfirmationBanner({
   text: string;
   onConfirm?: (accepted: boolean) => void;
   onPendingChange?: (pending: boolean) => void;
-  persistedDecision?: "accepted" | "rejected";
-  onDecisionPersist?: (decision: "accepted" | "rejected") => void;
+  persistedDecision?: 'accepted' | 'rejected';
+  onDecisionPersist?: (decision: 'accepted' | 'rejected') => void;
 }) {
   // Local state for immediate UI feedback before persistence completes
   const [localDecision, setLocalDecision] = useState<
-    "accepted" | "rejected" | null
+    'accepted' | 'rejected' | null
   >(null);
 
   // Effective decision: prefer persisted (survives reload), fall back to local (immediate feedback)
@@ -248,57 +240,51 @@ function ConfirmationBanner({
   }, [decision]);
 
   const handleClick = (accepted: boolean) => {
-    const d = accepted ? "accepted" : "rejected";
+    const d = accepted ? 'accepted' : 'rejected';
     setLocalDecision(d);
     onDecisionPersist?.(d);
     onConfirm?.(accepted);
   };
 
   return (
-    <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+    <div className='rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 space-y-3'>
+      <p className='text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400'>
         ⚠️ Confirmation required
       </p>
 
-      <p className="text-sm leading-relaxed">{text}</p>
+      <p className='text-sm leading-relaxed'>{text}</p>
 
-      {decision === null ? (
-        <div className="flex gap-2 pt-1">
+      {decision === null ?
+        <div className='flex gap-2 pt-1'>
           <Button
-            size="sm"
-            className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
-            onClick={() => handleClick(true)}
-          >
-            <Check className="h-3.5 w-3.5" />
+            size='sm'
+            className='gap-1.5 bg-green-600 hover:bg-green-700 text-white'
+            onClick={() => handleClick(true)}>
+            <Check className='h-3.5 w-3.5' />
             Accept
           </Button>
           <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-            onClick={() => handleClick(false)}
-          >
-            <X className="h-3.5 w-3.5" />
+            size='sm'
+            variant='outline'
+            className='gap-1.5 border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-950'
+            onClick={() => handleClick(false)}>
+            <X className='h-3.5 w-3.5' />
             Reject
           </Button>
         </div>
-      ) : (
-        <span
+      : <span
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium",
-            decision === "accepted"
-              ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
-              : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
-          )}
-        >
-          {decision === "accepted" ? (
-            <Check className="h-3 w-3" />
-          ) : (
-            <X className="h-3 w-3" />
-          )}
-          {decision === "accepted" ? "Accepted — executing…" : "Rejected"}
+            'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium',
+            decision === 'accepted' ?
+              'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+            : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400',
+          )}>
+          {decision === 'accepted' ?
+            <Check className='h-3 w-3' />
+          : <X className='h-3 w-3' />}
+          {decision === 'accepted' ? 'Accepted — executing…' : 'Rejected'}
         </span>
-      )}
+      }
     </div>
   );
 }
@@ -316,16 +302,16 @@ function extractStructured(content: string): StructuredResponse | null {
 
   // Find all balanced JSON objects in the content
   for (let i = 0; i < content.length; i++) {
-    if (content[i] === "{") {
+    if (content[i] === '{') {
       if (depth === 0) start = i;
       depth++;
-    } else if (content[i] === "}") {
+    } else if (content[i] === '}') {
       depth--;
       if (depth === 0 && start !== -1) {
         const jsonStr = content.slice(start, i + 1);
         try {
           const parsed = JSON.parse(jsonStr);
-          if (parsed && typeof parsed === "object") {
+          if (parsed && typeof parsed === 'object') {
             jsonObjects.push(parsed);
           }
         } catch {
@@ -342,25 +328,25 @@ function extractStructured(content: string): StructuredResponse | null {
   const merged: Partial<StructuredResponse> = {};
   for (const obj of jsonObjects) {
     // For each field, prefer non-empty values
-    if (obj.sql && (!merged.sql || merged.sql.trim() === ""))
+    if (obj.sql && (!merged.sql || merged.sql.trim() === ''))
       merged.sql = obj.sql;
     if (
       obj.explanation &&
-      (!merged.explanation || merged.explanation.trim() === "")
+      (!merged.explanation || merged.explanation.trim() === '')
     )
       merged.explanation = obj.explanation;
     if (
       obj.result &&
       (!merged.result ||
-        merged.result.trim() === "" ||
-        merged.result === "null" ||
-        merged.result === "[]")
+        merged.result.trim() === '' ||
+        merged.result === 'null' ||
+        merged.result === '[]')
     ) {
       merged.result = obj.result;
     }
     if (
       obj.confirmation &&
-      (!merged.confirmation || merged.confirmation.trim() === "")
+      (!merged.confirmation || merged.confirmation.trim() === '')
     )
       merged.confirmation = obj.confirmation;
     if (obj.confirmation_required !== undefined)
@@ -372,7 +358,7 @@ function extractStructured(content: string): StructuredResponse | null {
   }
 
   // Only return if we have at least an explanation
-  if (typeof merged.explanation === "string") {
+  if (typeof merged.explanation === 'string') {
     return merged as StructuredResponse;
   }
 
@@ -381,11 +367,11 @@ function extractStructured(content: string): StructuredResponse | null {
 
 function cleanConfirmation(text: string): string {
   return text
-    .split("\n")
+    .split('\n')
     .filter(
-      (line) => !line.trim().startsWith("|") && !line.trim().startsWith("|-"),
+      (line) => !line.trim().startsWith('|') && !line.trim().startsWith('|-'),
     )
-    .join("\n")
+    .join('\n')
     .trim();
 }
 
@@ -400,17 +386,20 @@ export function AssistantMessage({
   const structured = extractStructured(content);
 
   // Any non-JSON prefix lines (e.g. "🔧 Executing tool: query...")
-  const prefixLines = structured
-    ? content
-        .slice(0, content.indexOf("{"))
-        .split("\n")
-        .map((l) => l.replace(/\*/g, "").trim())
+  const prefixLines =
+    structured ?
+      content
+        .slice(0, content.indexOf('{'))
+        .split('\n')
+        .map((l) => l.replace(/\*/g, '').trim())
         .filter(Boolean)
     : [];
 
   if (!structured) {
     return (
-      <pre className="whitespace-pre-wrap text-sm font-sans">{content}</pre>
+      <ReactMarkdown>
+        {typeof content === 'string' ? content : String(content)}
+      </ReactMarkdown>
     );
   }
 
@@ -423,21 +412,22 @@ export function AssistantMessage({
     confirmation_decision,
   } = structured;
 
-  const sqlString = typeof sql === "string" ? sql : "";
+  const sqlString = typeof sql === 'string' ? sql : '';
   const hasSql =
     sqlString.trim().length > 0 &&
-    sqlString.trim() !== "{}" &&
-    sqlString.trim() !== "null";
+    sqlString.trim() !== '{}' &&
+    sqlString.trim() !== 'null';
 
-  const cleanedConfirmation = confirmation
-    ? cleanConfirmation(String(confirmation))
-    : "";
+  const cleanedConfirmation =
+    confirmation ? cleanConfirmation(String(confirmation)) : '';
 
   return (
-    <div className="space-y-3 text-sm">
+    <div className='space-y-3 text-sm'>
       {/* Tool status prefix */}
       {prefixLines.map((line, i) => (
-        <p key={i} className="text-muted-foreground text-xs">
+        <p
+          key={i}
+          className='text-muted-foreground text-xs'>
           {line}
         </p>
       ))}
@@ -446,14 +436,14 @@ export function AssistantMessage({
       {hasSql && <SqlBlock sql={sqlString.trim()} />}
 
       {/* Explanation */}
-      {explanation && <p className="leading-relaxed">{explanation}</p>}
+      {explanation && <ReactMarkdown>{explanation}</ReactMarkdown>}
 
       {/* Result table */}
       {result && <ResultTable result={result} />}
 
       {/* Confirmation — interactive banner or plain muted text */}
       {cleanedConfirmation &&
-        (confirmation_required ? (
+        (confirmation_required ?
           <ConfirmationBanner
             text={cleanedConfirmation}
             onConfirm={onConfirm}
@@ -461,11 +451,9 @@ export function AssistantMessage({
             persistedDecision={confirmation_decision}
             onDecisionPersist={onDecisionPersist}
           />
-        ) : (
-          <p className="text-muted-foreground text-xs border-t pt-2">
+        : <p className='text-muted-foreground text-xs border-t pt-2'>
             {cleanedConfirmation}
-          </p>
-        ))}
+          </p>)}
     </div>
   );
 }
