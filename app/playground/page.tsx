@@ -179,6 +179,7 @@ export default function PlaygroundPage() {
   const session = useChatStore((s) =>
     s.activeSessionId ? s.sessions[s.activeSessionId] : null,
   );
+  const createSession = useChatStore((s) => s.createSession);
   const setConnection = useChatStore((s) => s.setSessionConnection);
   const setConnected = useChatStore((s) => s.setSessionConnected);
 
@@ -192,9 +193,9 @@ export default function PlaygroundPage() {
       <ConnectionCard
         savedUrl={url}
         onConnect={(u) => {
-          if (!activeId) return;
-          setConnection(activeId, u); // Save the connection string to the session
-          setConnected(activeId, true); // Mark the session as connected
+          const id = activeId ?? createSession();
+          setConnection(id, u); // Save the connection string to the session
+          setConnected(id, true); // Mark the session as connected
         }}
         onReconnect={() => {
           if (activeId && url) setConnected(activeId, true);
