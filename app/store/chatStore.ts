@@ -16,6 +16,7 @@ export interface Session {
   id: string;
   title: string;
   connectionString: string;
+  isConnected: boolean;
   messages: Message[];
   isLoading: boolean;
   createdAt: number;
@@ -34,6 +35,7 @@ interface ChatStore {
   renameSession: (sessionId: string, title: string) => void;
   clearSession: (sessionId: string) => void;
   setSessionConnection: (sessionId: string, connectionString: string) => void;
+  setSessionConnected: (sessionId: string, isConnected: boolean) => void;
 
   // Message actions
   addMessage: (
@@ -63,6 +65,7 @@ function makeSession(overrides?: Partial<Session>): Session {
     id: crypto.randomUUID(),
     title: 'New Chat',
     connectionString: '',
+    isConnected: false,
     messages: [],
     isLoading: false,
     createdAt: now,
@@ -79,13 +82,19 @@ function makeMessage(fields: Omit<Message, 'id' | 'createdAt'>): Message {
   };
 }
 
-/** Auto-title a session from the first user message (first 40 chars) */
-function derivedTitle(messages: Message[]): string {
-  const first = messages.find((m) => m.role === 'user');
-  if (!first) return 'New Chat';
-  return (
-    first.content.slice(0, 40).trim() + (first.content.length > 40 ? '…' : '')
-  );
+function titleFromConnectionString(connectionString: string) {
+  try {
+    const parsed = new URL(connectionString);
+    const dbName = parsed.pathname.replace(/^\//, '').trim();
+    return dbName || 'New Chat';
+  } catch {
+    const stripped = connectionString.trim().replace(/\?.*$/, '');
+    const slashIndex = stripped.lastIndexOf('/');
+    if (slashIndex >= 0 && slashIndex < stripped.length - 1) {
+      return stripped.slice(slashIndex + 1);
+    }
+    return 'New Chat';
+  }
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -144,7 +153,9 @@ export const useChatStore = create<ChatStore>()(
             [sessionId]: {
               ...s.sessions[sessionId],
               messages: [],
-              title: 'New Chat',
+              title: titleFromConnectionString(
+                s.sessions[sessionId]?.connectionString ?? '',
+              ),
               updatedAt: Date.now(),
             },
           },
@@ -161,6 +172,24 @@ export const useChatStore = create<ChatStore>()(
               [sessionId]: {
                 ...session,
                 connectionString,
+                title: titleFromConnectionString(connectionString),
+                updatedAt: Date.now(),
+              },
+            },
+          };
+        });
+      },
+
+      setSessionConnected: (sessionId, isConnected) => {
+        set((s) => {
+          const session = s.sessions[sessionId];
+          if (!session) return s;
+          return {
+            sessions: {
+              ...s.sessions,
+              [sessionId]: {
+                ...session,
+                isConnected,
                 updatedAt: Date.now(),
               },
             },
@@ -182,7 +211,6 @@ export const useChatStore = create<ChatStore>()(
               [sessionId]: {
                 ...session,
                 messages,
-                title: derivedTitle(messages),
                 updatedAt: Date.now(),
               },
             },

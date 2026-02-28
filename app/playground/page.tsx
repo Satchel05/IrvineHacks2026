@@ -24,9 +24,12 @@ export default function PlaygroundPage() {
     s.activeSessionId ? s.sessions[s.activeSessionId] : null,
   );
   const setSessionConnection = useChatStore((s) => s.setSessionConnection);
+  const setSessionConnected = useChatStore((s) => s.setSessionConnected);
 
   const connectionString = activeSession?.connectionString ?? "";
-  const isConnected = Boolean(connectionString);
+  const isConnected =
+    activeSession?.isConnected ??
+    (activeSession ? Boolean(connectionString) : false);
 
   useEffect(() => {
     setTempConnection(connectionString);
@@ -39,13 +42,18 @@ export default function PlaygroundPage() {
     const trimmedConnection = tempConnection.trim();
     if (trimmedConnection) {
       setSessionConnection(activeSessionId, trimmedConnection);
+      setSessionConnected(activeSessionId, true);
     }
+  };
+
+  const handleReconnect = () => {
+    if (!activeSessionId || !connectionString) return;
+    setSessionConnected(activeSessionId, true);
   };
 
   const handleDisconnect = () => {
     if (!activeSessionId) return;
-    setSessionConnection(activeSessionId, "");
-    setTempConnection("");
+    setSessionConnected(activeSessionId, false);
   };
 
   if (!isConnected) {
@@ -55,43 +63,57 @@ export default function PlaygroundPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Database className="h-5 w-5" />
-              Connect to Database
+              {connectionString
+                ? "Reconnect to Database"
+                : "Connect to Database"}
             </CardTitle>
             <CardDescription>
-              Enter your PostgreSQL connection string to start querying
+              {connectionString
+                ? "Reconnect this tab using its saved database connection"
+                : "Enter your PostgreSQL connection string to start querying"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleConnect} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="connectionString">Connection String</Label>
-                <div className="relative">
-                  <Input
-                    id="connectionString"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="postgresql://user:password@host:port/database"
-                    value={tempConnection}
-                    onChange={(e) => setTempConnection(e.target.value)}
-                    className="pr-10"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-              <Button type="submit" className="w-full">
-                Connect
+            {connectionString ? (
+              <Button
+                type="button"
+                className="w-full"
+                onClick={handleReconnect}
+              >
+                Reconnect
               </Button>
-            </form>
+            ) : (
+              <form onSubmit={handleConnect} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="connectionString">Connection String</Label>
+                  <div className="relative">
+                    <Input
+                      id="connectionString"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="postgresql://user:password@host:port/database"
+                      value={tempConnection}
+                      onChange={(e) => setTempConnection(e.target.value)}
+                      className="pr-10"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <Button type="submit" className="w-full">
+                  Connect
+                </Button>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>
