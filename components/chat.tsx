@@ -70,34 +70,37 @@ function Avatar({ isUser }: { isUser: boolean }) {
 function MessageBubble({
   message,
   onConfirm,
+  onExplain,           // ← NEW
   onConfirmationStateChange,
   onDecisionPersist,
 }: {
   message: Message;
   onConfirm?: (accepted: boolean) => void;
+  onExplain?: () => void;              // ← NEW
   onConfirmationStateChange?: (messageId: string, pending: boolean) => void;
   onDecisionPersist?: (decision: "accepted" | "rejected") => void;
 }) {
   const isUser = message.role === "user";
   return (
-    <div
-      className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}
-    >
+    <div className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}>
       <Avatar isUser={isUser} />
       <div
         className={cn(
-          "flex-1 rounded-lg px-4 py-2 max-w-[80%]",
-          isUser ? "bg-primary text-primary-foreground ml-auto" : "bg-muted",
+          "flex-1 max-w-[85%]",
+          // User bubbles keep their colored pill; assistant messages are now
+          // their own self-contained cards — no extra bg wrapper needed.
+          isUser
+            ? "rounded-lg px-4 py-2 bg-primary text-primary-foreground ml-auto"
+            : "",
         )}
       >
         {isUser ? (
-          <pre className="whitespace-pre-wrap text-sm font-sans">
-            {message.content}
-          </pre>
+          <pre className="whitespace-pre-wrap text-sm font-sans">{message.content}</pre>
         ) : (
           <AssistantMessage
             content={message.content}
             onConfirm={onConfirm}
+            onExplain={onExplain}    // ← NEW
             onConfirmationStateChange={(pending) =>
               onConfirmationStateChange?.(message.id, pending)
             }
@@ -477,7 +480,7 @@ export function Chat({ connectionString }: ChatProps) {
       <div className="border-t p-4">
         <div className="flex-1">
   <button
-  onClick={() => sendMessage("Can you explain the SQL in more detail please?")}
+  onClick={() => sendMessage("Can you explain what this query does in more detail, including any risks or side effects?")}
   className="px-2 py-2 bg-gray-300 text-white font-small rounded-lg shadow-md hover:bg-gray-400 active:scale-95 transition-all duration-200 ease-in-out"
 >
   Explain more
