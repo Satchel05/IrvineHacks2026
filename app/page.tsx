@@ -71,8 +71,8 @@ export default function Home() {
               key={index}
               className={`${
                 msg.role === "user"
-                  ? "text-right text-blue-600"
-                  : "text-left text-green-600"
+                  ? "text-right text-pink-600"
+                  : "text-left text-blue-600"
               }`}
             >
               {msg.content}
