@@ -2,15 +2,20 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-let mcpClient: Client | null = null;
-let anthropicTools: any[] = [];
+// Cache clients by connection string
+const clientCache = new Map<
+  string,
+  { mcpClient: Client; anthropicTools: any[] }
+>();
 
-async function getMCPClient() {
-  if (mcpClient) return { mcpClient, anthropicTools };
+async function getMCPClient(connectionString: string) {
+  if (clientCache.has(connectionString)) {
+    return clientCache.get(connectionString)!;
+  }
 
   const transport = new StdioClientTransport({
     command: 'npx',
-    args: ['-y', 'mcp-postgres-full-access', process.env.DATABASE_URL!],
+    args: ['-y', 'mcp-postgres-full-access', connectionString],
     env: {
       ...process.env,
       TRANSACTION_TIMEOUT_MS: '60000',
@@ -18,23 +23,27 @@ async function getMCPClient() {
     },
   });
 
-  mcpClient = new Client({ name: 'nl-to-sql', version: '1.0.0' });
+  const mcpClient = new Client({ name: 'nl-to-sql', version: '1.0.0' });
   await mcpClient.connect(transport);
 
   const { tools } = await mcpClient.listTools();
-  anthropicTools = tools.map((tool) => ({
+  const anthropicTools = tools.map((tool) => ({
     name: tool.name,
     description: tool.description,
     input_schema: tool.inputSchema,
   }));
 
+  clientCache.set(connectionString, { mcpClient, anthropicTools });
   return { mcpClient, anthropicTools };
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-export async function queryDatabase(userMessage: string) {
-  const { mcpClient, anthropicTools } = await getMCPClient();
+export async function queryDatabase(
+  userMessage: string,
+  connectionString: string,
+) {
+  const { mcpClient, anthropicTools } = await getMCPClient(connectionString);
 
   const messages: any[] = [{ role: 'user', content: userMessage }];
 

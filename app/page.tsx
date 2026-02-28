@@ -1,104 +1,121 @@
-"use client";
+'use client';
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
 export default function Home() {
-  const [connectionString, setConnectionString] = useState("");
-  const [messages, setMessages] = useState<
-    { role: "user" | "bot"; content: string }[]
-  >([]);
-  const [input, setInput] = useState("");
+  const [connectionString, setConnectionString] = useState('');
+  const [query, setQuery] = useState('');
+  const [result, setResult] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const chatRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll to bottom when messages update
-  useEffect(() => {
-    if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  const sendMessage = async () => {
-    if (!input.trim() || !connectionString) return;
-
-    const userText = input;
-    setMessages((prev) => [...prev, { role: "user", content: userText }]);
-    setInput("");
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setResult('');
 
     try {
-      const res = await fetch(connectionString, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userText }),
+      const response = await fetch('/api/query', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          connectionString,
+          message: query,
+        }),
       });
 
-      const data = await res.json();
+      const data = await response.json();
 
-      setMessages((prev) => [
-        ...prev,
-        { role: "bot", content: data.reply || "No response" },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "bot", content: "Error connecting to server." },
-      ]);
+      if (!response.ok) {
+        throw new Error(data.error || 'Something went wrong');
+      }
+
+      setResult(data.result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black">
-      <main className="w-full max-w-2xl p-6 bg-white dark:bg-zinc-900 rounded-lg shadow flex flex-col gap-4">
-
-        <h1 className="text-2xl font-bold">Simple Chatbot</h1>
-
-        {/* Connection String */}
-        <input
-          type="text"
-          placeholder="Enter API connection string..."
-          value={connectionString}
-          onChange={(e) => setConnectionString(e.target.value)}
-          className="w-full p-2 border rounded bg-zinc-100 dark:bg-zinc-800"
-        />
-
-        {/* Fixed Height Scrollable Chat */}
-        <div
-          ref={chatRef}
-          className="h-96 overflow-y-auto border rounded p-4 bg-zinc-50 dark:bg-zinc-800 space-y-2"
-        >
-          {messages.map((msg, index) => (
-            <div
-              key={index}
-              className={`${
-                msg.role === "user"
-                  ? "text-right text-pink-600"
-                  : "text-left text-blue-600"
-              }`}
-            >
-              {msg.content}
+    <main className='min-h-screen p-8 flex items-center justify-center'>
+      <Card className='w-full max-w-2xl'>
+        <CardHeader>
+          <CardTitle>Database Query</CardTitle>
+          <CardDescription>
+            Connect to your PostgreSQL database and query it using natural
+            language
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={handleSubmit}
+            className='space-y-6'>
+            <div className='space-y-2'>
+              <Label htmlFor='connectionString'>
+                Database Connection String
+              </Label>
+              <Input
+                id='connectionString'
+                type='password'
+                placeholder='postgresql://user:password@host:port/database'
+                value={connectionString}
+                onChange={(e) => setConnectionString(e.target.value)}
+                required
+              />
             </div>
-          ))}
-        </div>
 
-        {/* Input Row */}
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Type a message..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            className="flex-1 p-2 border rounded bg-zinc-100 dark:bg-zinc-800"
-          />
-          <button
-            onClick={sendMessage}
-            className="px-4 py-2 bg-black text-white rounded dark:bg-white dark:text-black"
-          >
-            Send
-          </button>
-        </div>
+            <div className='space-y-2'>
+              <Label htmlFor='query'>Query</Label>
+              <Textarea
+                id='query'
+                placeholder='Ask a question about your database in natural language...'
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                rows={4}
+                required
+              />
+            </div>
 
-      </main>
-    </div>
+            <Button
+              type='submit'
+              disabled={loading}
+              className='w-full'>
+              {loading ? 'Querying...' : 'Submit Query'}
+            </Button>
+          </form>
+
+          {error && (
+            <div className='mt-6 p-4 bg-red-50 border border-red-200 rounded-md'>
+              <p className='text-red-600'>{error}</p>
+            </div>
+          )}
+
+          {result && (
+            <div className='mt-6 space-y-2'>
+              <Label>Result</Label>
+              <div className='p-4 bg-muted rounded-md'>
+                <pre className='whitespace-pre-wrap text-sm'>{result}</pre>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </main>
   );
 }
