@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useChatStore, type Message } from '@/app/store/chatStore';
 import { Send, User, Bot, Loader2, Database } from 'lucide-react';
+import { renderMessageContent } from './queryresulttable';
 import { cn } from '@/lib/utils';
 
 interface ChatProps {
@@ -35,9 +36,7 @@ function MessageBubble({ message }: { message: Message }) {
           isUser ? 'bg-primary text-primary-foreground ml-auto' : 'bg-muted'
         )}
       >
-        <pre className="whitespace-pre-wrap text-sm font-sans">
-          {message.content}
-        </pre>
+  {renderMessageContent(message.content)}
       </div>
     </div>
   );

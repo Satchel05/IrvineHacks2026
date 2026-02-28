@@ -44,7 +44,6 @@ export async function queryDatabase(
   connectionString: string,
 ) {
   const { mcpClient, anthropicTools } = await getMCPClient(connectionString);
-
   const messages: any[] = [{ role: 'user', content: userMessage }];
 
   while (true) {
@@ -52,23 +51,56 @@ export async function queryDatabase(
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       tools: anthropicTools,
-      system:
-        "You are a helpful assistant that translates natural language to SQL and queries a PostgreSQL database. Always show the SQL you're running and return results in a clear format.",
+      system: `You are a database expert and assistant that translates natural language to SQL and executes queries on a PostgreSQL database via tools.
+
+For EVERY response, reply ONLY with this JSON — no markdown, no prose, no code fences:
+
+{
+  "type": "structured",
+  "sql": { "sql": "SELECT * FROM providers;" },
+  "explanation": "This retrieves all rows from the providers table.",
+  "result": {
+    "type": "table",
+    "columns": ["id", "name"],
+    "data": [{"id": "1", "name": "Dr. Smith"}]
+  },
+  "confirmation": {
+    "message": "Query returned 14 rows.",
+    "rowsAffected": 14
+  }
+}
+
+Rules:
+- "sql" is always required.
+- "explanation" is always required — one or two sentences describing what the SQL does.
+- "result" is required for SELECT queries. Omit for INSERT/UPDATE/DELETE with no RETURNING clause.
+- "confirmation" is always required — summarize what happened and include rowsAffected.
+- For INSERT/UPDATE/DELETE, set rowsAffected to the number of rows changed.
+- Never output anything outside this JSON object.`,
       messages,
     });
 
     messages.push({ role: 'assistant', content: response.content });
 
     if (response.stop_reason === 'end_turn') {
-      return response.content.find((b: any) => b.type === 'text')?.text;
+      const textBlock = response.content
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .map((b) => b.text)
+        .join('');
+
+      try {
+        return JSON.parse(textBlock);
+      } catch {
+        return textBlock || '';
+      }
     }
 
-    const toolResults = [];
+    const toolResults: Anthropic.MessageParam['content'] = [];
     for (const block of response.content) {
       if (block.type === 'tool_use') {
         const result = await mcpClient.callTool({
           name: block.name,
-          arguments: block.input,
+          arguments: block.input as Record<string, unknown>,
         });
         toolResults.push({
           type: 'tool_result',
@@ -79,8 +111,8 @@ export async function queryDatabase(
     }
 
     messages.push({ role: 'user', content: toolResults });
-  }
-}
+  } // ← closes while(true)
+}   // ← closes queryDatabase
 
 export async function initializeSchema(connectionString: string) {
   const { mcpClient } = await getMCPClient(connectionString);
