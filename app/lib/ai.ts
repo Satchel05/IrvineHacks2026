@@ -92,7 +92,7 @@ const STRICT_OUTPUT_CONFIG = {
         },
         confirmation_required: {
           type: 'boolean',
-          description: 'Whether this operation requires user confirmation before executing (POST, CREATE, DELETE).',
+          description: 'Whether this operation requires user confirmation before executing (POST, CREATE, DELETE). Once the user confirms execution, turn false.',
         },
         user_confirmed: {
           type: 'boolean',
