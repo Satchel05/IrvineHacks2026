@@ -29,8 +29,7 @@ export async function POST(req: NextRequest) {
   // ── Input validation ──────────────────────────────────────────────────
   if (!Array.isArray(messages) || messages.length === 0)
     return jsonError('Messages array is required');
-  if (!connectionString)
-    return jsonError('Connection string is required');
+  if (!connectionString) return jsonError('Connection string is required');
 
   const encoder = new TextEncoder();
 
@@ -40,7 +39,10 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of queryDatabaseStream(messages as ChatMessage[], connectionString)) {
+        for await (const chunk of queryDatabaseStream(
+          messages as ChatMessage[],
+          connectionString,
+        )) {
           controller.enqueue(encoder.encode(chunk));
         }
       } catch (err) {

@@ -19,16 +19,16 @@
  *  - To add a new MCP tool call pattern, add logic in the tool-call loop inside `queryDatabaseStream`.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import type { Tool, ToolUseBlock } from "@anthropic-ai/sdk/resources/messages";
+import Anthropic from '@anthropic-ai/sdk';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import type { Tool, ToolUseBlock } from '@anthropic-ai/sdk/resources/messages';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 /** Shape of messages passed between the frontend and this module. */
 export interface ChatMessage {
-  role: "user" | "assistant" | "system";
+  role: 'user' | 'assistant' | 'system';
   content: string;
 }
 
@@ -43,6 +43,9 @@ interface MCPTextBlock {
   type?: string;
   text?: string;
 }
+
+/** In-memory cache for database schema, keyed by connection string. */
+const schemaCache = new Map<string, { tables: string[]; details: string }>();
 
 // ─── Clients & Config ─────────────────────────────────────────────────────────
 
@@ -64,7 +67,8 @@ const SYSTEM_PROMPT = `You are a professional PostgreSQL translator that transla
 
 RULES:
 - Always show the SQL you're running and return results in a clear format.
-- For SELECT queries: Execute and return the SQL along with the results. If there exists Foreign Key relationships, you MUST join the tables and return the results in a single query. If there are multiple foreign keys, you MUST join all of them. When mull values are found, you MUST return them as NULL in the result set.
+- For SELECT queries: Execute and return the SQL along with the results. If there exists Foreign Key relationships, you MUST join the tables and return the results in a single query. If there are multiple foreign keys, you MUST join all of them. When null values are found, you MUST return them as NULL in the result set.
+- CRITICAL: You MUST only call execute_query ONCE per user request. Do not run exploratory or diagnostic queries. Plan the full query before executing.
 - For INSERT/UPDATE/DELETE operations: Ask for confirmation BEFORE executing.
   - CRITICAL: When confirming an INSERT, you MUST include the exact row(s) that will be inserted in the result field as a JSON array. Show all column values that will be written.
   - For UPDATE/DELETE, show the affected rows or describe what will change.
@@ -74,7 +78,7 @@ RULES:
 
 /** Extra instruction when strict output is OFF (conversational mode). */
 const CONVERSATIONAL_PROMPT_SUFFIX =
-  "If the user is making small talk or asking a general conversational question, reply naturally in plain text and do not use JSON output formatting.";
+  'If the user is making small talk or asking a general conversational question, reply naturally in plain text and do not use JSON output formatting.';
 
 /**
  * Strict structured output schema for DB/task responses.
@@ -84,24 +88,24 @@ const CONVERSATIONAL_PROMPT_SUFFIX =
  */
 const STRICT_OUTPUT_CONFIG = {
   format: {
-    type: "json_schema",
+    type: 'json_schema',
     schema: {
-      type: "object",
+      type: 'object',
       properties: {
-        sql: { type: "string" },
-        explanation: { type: "string" },
+        sql: { type: 'string' },
+        explanation: { type: 'string' },
         result: {
-          type: "string",
+          type: 'string',
           description:
             'JSON-stringified result payload. For SELECT queries: the returned rows. For INSERT operations awaiting confirmation: a JSON array containing the exact row(s) that WILL BE inserted (e.g. [{"name": "John", "email": "john@example.com"}]). For UPDATE/DELETE: the rows that will be affected. CRITICAL: Never leave this empty for INSERT confirmations - always show the data that will be written.',
         },
         confirmation: {
-          type: "string",
+          type: 'string',
           description:
-            "Confirmation message for the user with number of rows returned or affected describing what quite simply will change and what the user should expect. Do not include the raw SQL or data in this field.",
+            'Confirmation message for the user with number of rows returned or affected describing what quite simply will change and what the user should expect. Do not include the raw SQL or data in this field.',
         },
         confirmation_required: {
-          type: "boolean",
+          type: 'boolean',
           description: `
 Whether this operation requires user confirmation BEFORE execution.
 
@@ -114,7 +118,7 @@ Rules:
 `,
         },
         user_confirmed: {
-          type: "boolean",
+          type: 'boolean',
           description: `
 Indicates whether the user has explicitly approved execution.
 
@@ -127,7 +131,7 @@ Rules:
 `,
         },
         risk: {
-          type: "integer",
+          type: 'integer',
           description: `
 Integer risk level of the SQL statement.
 
@@ -161,7 +165,7 @@ Always choose the highest matching category.
 `,
         },
       },
-      required: ["sql", "explanation", "result", "confirmation"],
+      required: ['sql', 'explanation', 'result', 'confirmation'],
       additionalProperties: false,
     },
   },
@@ -181,11 +185,11 @@ function shouldUseStrictOutput(
   const lastUser = (() => {
     for (let i = chatHistory.length - 1; i >= 0; i -= 1) {
       const m = chatHistory[i];
-      if (m.role === "user" && typeof m.content === "string") {
+      if (m.role === 'user' && typeof m.content === 'string') {
         return m.content.trim();
       }
     }
-    return "";
+    return '';
   })();
 
   if (!lastUser) return false;
@@ -202,12 +206,12 @@ function shouldUseStrictOutput(
   if (knownTables?.size) {
     const tokens = lastUser
       .toLowerCase()
-      .replace(/[^a-z0-9_\s]/g, " ")
+      .replace(/[^a-z0-9_\s]/g, ' ')
       .split(/\s+/)
       .filter(Boolean);
     for (const token of tokens) {
       // Exact match OR strip trailing 's'/'es' to handle common plurals
-      const singular = token.replace(/(?:es|s)$/, "");
+      const singular = token.replace(/(?:es|s)$/, '');
       if (knownTables.has(token) || knownTables.has(singular)) return true;
     }
   }
@@ -237,25 +241,25 @@ async function getMCPClient(connectionString: string): Promise<CacheEntry> {
 
   // Spawn the MCP Postgres server as a child process communicating over stdio
   const transport = new StdioClientTransport({
-    command: "npx",
-    args: ["-y", "mcp-postgres-full-access", connectionString],
+    command: 'npx',
+    args: ['-y', 'mcp-postgres-full-access', connectionString],
     env: {
       ...process.env,
-      TRANSACTION_TIMEOUT_MS: "60000", // Max time for a single transaction
-      PG_STATEMENT_TIMEOUT_MS: "30000", // Max time for a single SQL statement
+      TRANSACTION_TIMEOUT_MS: '60000', // Max time for a single transaction
+      PG_STATEMENT_TIMEOUT_MS: '30000', // Max time for a single SQL statement
     },
   });
 
   // Create and connect the MCP client
-  const mcpClient = new Client({ name: "nl-to-sql", version: "1.0.0" });
+  const mcpClient = new Client({ name: 'nl-to-sql', version: '1.0.0' });
   await mcpClient.connect(transport);
 
   // Fetch available tools from the MCP server and convert to Anthropic format
   const { tools: rawTools } = await mcpClient.listTools();
   const tools: Tool[] = rawTools.map((t) => ({
     name: t.name,
-    description: t.description ?? "",
-    input_schema: t.inputSchema as Tool["input_schema"],
+    description: t.description ?? '',
+    input_schema: t.inputSchema as Tool['input_schema'],
   }));
 
   const entry: CacheEntry = { mcpClient, tools };
@@ -286,20 +290,21 @@ export async function* queryDatabaseStream(
     chatHistory,
     knownTablesByConnection.get(connectionString),
   );
-  const systemPrompt = useStrictOutput
-    ? SYSTEM_PROMPT
-    : `${SYSTEM_PROMPT} ${CONVERSATIONAL_PROMPT_SUFFIX}`;
+  const systemPrompt =
+    useStrictOutput ? SYSTEM_PROMPT : (
+      `${SYSTEM_PROMPT} ${CONVERSATIONAL_PROMPT_SUFFIX}`
+    );
 
   // Convert our ChatMessage[] to Anthropic's MessageParam[] (strip 'system' role)
   const messages: Anthropic.MessageParam[] = chatHistory
-    .filter((m) => m.role !== "system")
-    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+    .filter((m) => m.role !== 'system')
+    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
   // Tool-use loop: keeps going until Claude says "end_turn"
   while (true) {
     // Start a streaming request to Claude
     const stream = anthropic.messages.stream({
-      model: "claude-sonnet-4-6",
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       tools,
       system: systemPrompt,
@@ -310,8 +315,8 @@ export async function* queryDatabaseStream(
     // Yield text chunks as they arrive from the stream
     for await (const event of stream) {
       if (
-        event.type === "content_block_delta" &&
-        event.delta.type === "text_delta"
+        event.type === 'content_block_delta' &&
+        event.delta.type === 'text_delta'
       ) {
         yield event.delta.text;
       }
@@ -319,14 +324,14 @@ export async function* queryDatabaseStream(
 
     // Get the complete final message (includes all content blocks)
     const final = await stream.finalMessage();
-    messages.push({ role: "assistant", content: final.content });
+    messages.push({ role: 'assistant', content: final.content });
 
     // If Claude ended its turn naturally (no tool calls), we're done
-    if (final.stop_reason === "end_turn") return;
+    if (final.stop_reason === 'end_turn') return;
 
     // Otherwise, Claude requested tool calls — execute them via MCP
     const toolBlocks = final.content.filter(
-      (b): b is ToolUseBlock => b.type === "tool_use",
+      (b): b is ToolUseBlock => b.type === 'tool_use',
     );
 
     const results: Anthropic.ToolResultBlockParam[] = [];
@@ -342,33 +347,32 @@ export async function* queryDatabaseStream(
       // If the tool requires confirmation but the user hasn't confirmed yet
       if (toolInput.confirmation_required && !toolInput.user_confirmed) {
         // Yield a confirmation prompt to the user
-        yield `⚠️ *Confirmation required for ${block.name}:*\n${toolInput.confirmation || "Are you sure you want to execute this operation?"}\nPlease confirm to proceed.`;
+        yield `⚠️ *Confirmation required for ${block.name}:*\n${toolInput.confirmation || 'Are you sure you want to execute this operation?'}\nPlease confirm to proceed.`;
 
         // Skip execution until the user responds with user_confirmed: true
         continue;
       }
 
-  // Otherwise, execute the tool normally
-    yield `\n\n🔧 *Executing tool: ${block.name}...*\n\n`;
-    const result = await mcpClient.callTool({
-      name: block.name,
-      arguments: block.input as Record<string, unknown>,
-    });
+      // Otherwise, execute the tool normally
+      yield `\n\n🔧 *Executing tool: ${block.name}...*\n\n`;
+      const result = await mcpClient.callTool({
+        name: block.name,
+        arguments: block.input as Record<string, unknown>,
+      });
 
-    // Yield immediate feedback with result preview
-    // const preview = JSON.stringify(result.content).slice(0, 200);
-    // yield `✅ *${block.name} completed.* Processing results...\n${preview}\n`;
-
+      // Yield immediate feedback with result preview
+      // const preview = JSON.stringify(result.content).slice(0, 200);
+      // yield `✅ *${block.name} completed.* Processing results...\n${preview}\n`;
 
       results.push({
-        type: "tool_result",
+        type: 'tool_result',
         tool_use_id: block.id,
         content: JSON.stringify(result.content),
       });
     }
 
     // Feed tool results back as a "user" message (Anthropic's convention)
-    messages.push({ role: "user", content: results });
+    messages.push({ role: 'user', content: results });
     // Loop continues — Claude will process the tool results and respond
   }
 }
@@ -381,7 +385,7 @@ export async function queryDatabase(
   chatHistory: ChatMessage[],
   connectionString: string,
 ): Promise<string> {
-  let result = "";
+  let result = '';
   for await (const chunk of queryDatabaseStream(
     chatHistory,
     connectionString,
@@ -406,21 +410,28 @@ export async function queryDatabase(
  * The `details` string is the raw schema text (not currently shown to the user,
  * but available for future use like passing to the LLM as context).
  */
+
 export async function initializeSchema(connectionString: string) {
+  // Check cache first
+  const cached = schemaCache.get(connectionString);
+  if (cached) {
+    return cached;
+  }
+
   const { mcpClient } = await getMCPClient(connectionString);
 
   // Step 1: Get the raw list of tables from the MCP server
   const result = await mcpClient.callTool({
-    name: "list_tables",
+    name: 'list_tables',
     arguments: {},
   });
 
   // Step 2: The MCP response is an array of content blocks; extract the text
   const blocks = result.content as MCPTextBlock[];
   const rawText = blocks
-    .filter((b) => b?.type === "text" && typeof b.text === "string")
+    .filter((b) => b?.type === 'text' && typeof b.text === 'string')
     .map((b) => b.text!)
-    .join("\n");
+    .join('\n');
 
   // Step 3: Parse table names from the JSON text
   const tableNames = extractTableNames(rawText);
@@ -434,11 +445,11 @@ export async function initializeSchema(connectionString: string) {
   for (const name of tableNames.slice(0, 10)) {
     try {
       const res = await mcpClient.callTool({
-        name: "describe_table_schema",
+        name: 'describe_table_schema',
         arguments: { table_name: name },
       });
       const text = (res.content as MCPTextBlock[]).find(
-        (c) => c.type === "text",
+        (c) => c.type === 'text',
       )?.text;
       if (text) details.push(`Table: ${name}\n${text}`);
     } catch {
@@ -446,7 +457,9 @@ export async function initializeSchema(connectionString: string) {
     }
   }
 
-  return { tables: tableNames, details: details.join("\n\n") };
+  const schemaResult = { tables: tableNames, details: details.join('\n\n') };
+  schemaCache.set(connectionString, schemaResult);
+  return schemaResult;
 }
 
 /**
@@ -463,13 +476,13 @@ function extractTableNames(raw: string): string[] {
   const validName = (s: string) => /^[A-Za-z_]\w*$/.test(s);
 
   /** Strip the "public." schema prefix if present. */
-  const clean = (s: string) => s.replace(/^public\./, "").trim();
+  const clean = (s: string) => s.replace(/^public\./, '').trim();
 
   // Primary path: try to parse the whole thing as a JSON array
   try {
     const parsed = JSON.parse(raw) as Array<{ table_name?: string }>;
     if (Array.isArray(parsed)) {
-      return parsed.map((r) => clean(r.table_name ?? "")).filter(validName);
+      return parsed.map((r) => clean(r.table_name ?? '')).filter(validName);
     }
   } catch {
     // Not valid JSON — fall through to regex
