@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useChatStore, type Message } from '@/app/store/chatStore';
-import { Send, User, Bot, Loader2 } from 'lucide-react';
+import { Send, User, Bot, Loader2, Database } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ChatProps {
@@ -45,7 +45,10 @@ function MessageBubble({ message }: { message: Message }) {
 
 export function Chat({ connectionString }: ChatProps) {
   const [input, setInput] = useState('');
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [schemaLoaded, setSchemaLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const schemaFetchedRef = useRef<string | null>(null);
 
   const activeSessionId = useChatStore((s) => s.activeSessionId);
   const activeSession = useChatStore((s) =>
@@ -69,6 +72,55 @@ export function Chat({ connectionString }: ChatProps) {
       createSession();
     }
   }, [activeSessionId, createSession]);
+
+  // Fetch schema on connection
+  const fetchSchema = useCallback(async () => {
+    if (!connectionString || !activeSessionId || schemaFetchedRef.current === connectionString) {
+      return;
+    }
+
+    setSchemaLoading(true);
+    schemaFetchedRef.current = connectionString;
+
+    try {
+      const response = await fetch('/api/schema', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectionString }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch schema');
+      }
+
+      const tableCount = data.schema?.tables?.length || 0;
+      const tableNames = data.schema?.tables?.slice(0, 5).join(', ') || 'none';
+      const moreText = tableCount > 5 ? ` and ${tableCount - 5} more` : '';
+
+      addMessage(activeSessionId, {
+        role: 'assistant',
+        content: `🎉 **Schema learned successfully!**\n\nI've analyzed your database and found **${tableCount} table${tableCount !== 1 ? 's' : ''}**: ${tableNames}${moreText}.\n\nI'm ready to help you query your data! Try asking questions like:\n- "Show me all records from [table_name]"\n- "What columns are in [table_name]?"\n- "Find the top 10 most recent entries"`,
+      });
+
+      setSchemaLoaded(true);
+    } catch (error) {
+      addMessage(activeSessionId, {
+        role: 'assistant',
+        content: `⚠️ **Could not load schema**: ${error instanceof Error ? error.message : 'Unknown error'}\n\nYou can still ask questions, but I may need to discover your tables as we go.`,
+      });
+      schemaFetchedRef.current = null;
+    } finally {
+      setSchemaLoading(false);
+    }
+  }, [connectionString, activeSessionId, addMessage]);
+
+  useEffect(() => {
+    if (activeSessionId && connectionString && !schemaLoaded) {
+      fetchSchema();
+    }
+  }, [activeSessionId, connectionString, schemaLoaded, fetchSchema]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,6 +182,19 @@ export function Chat({ connectionString }: ChatProps) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
         <p>Creating new chat...</p>
+      </div>
+    );
+  }
+
+  if (schemaLoading && messages.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <Database className="h-12 w-12 mx-auto mb-4 animate-pulse" />
+          <p className="font-medium">Learning your database schema...</p>
+          <p className="text-sm mt-2">This may take a few seconds</p>
+          <Loader2 className="h-5 w-5 mx-auto mt-4 animate-spin" />
+        </div>
       </div>
     );
   }

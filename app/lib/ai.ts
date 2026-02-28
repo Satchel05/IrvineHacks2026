@@ -81,3 +81,45 @@ export async function queryDatabase(
     messages.push({ role: 'user', content: toolResults });
   }
 }
+
+export async function initializeSchema(connectionString: string) {
+  const { mcpClient } = await getMCPClient(connectionString);
+
+  // Call the describe_table_schema tool to get the schema
+  const result = await mcpClient.callTool({
+    name: 'list_tables',
+    arguments: {},
+  });
+
+  // Parse the tables list
+  const tablesContent = result.content as Array<{ type: string; text: string }>;
+  const tablesText = tablesContent.find((c) => c.type === 'text')?.text || '';
+  
+  // Get detailed schema for each table
+  const tableNames = tablesText
+    .split('\n')
+    .filter((line: string) => line.trim() && !line.includes('Tables in'))
+    .map((line: string) => line.replace(/^[\s-]*/, '').trim())
+    .filter(Boolean);
+
+  const schemaDetails: string[] = [];
+  
+  for (const tableName of tableNames.slice(0, 10)) { // Limit to first 10 tables
+    try {
+      const schemaResult = await mcpClient.callTool({
+        name: 'describe_table_schema',
+        arguments: { table_name: tableName },
+      });
+      const schemaContent = schemaResult.content as Array<{ type: string; text: string }>;
+      const schemaText = schemaContent.find((c) => c.type === 'text')?.text || '';
+      schemaDetails.push(`Table: ${tableName}\n${schemaText}`);
+    } catch {
+      // Skip tables that can't be described
+    }
+  }
+
+  return {
+    tables: tableNames,
+    details: schemaDetails.join('\n\n'),
+  };
+}
