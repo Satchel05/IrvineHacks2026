@@ -139,6 +139,21 @@ export async function* queryDatabaseStream(
       tools,
       system: SYSTEM_PROMPT,
       messages,
+      output_config: {
+      "format": {
+        "type": "json_schema",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "sql": {"type": "string"},
+            "explanation": {"type": "string"},
+            "result": {"type": "string", "description": "JSON-stringified query result payload."},
+            "confirmation": {"type": "string", "description": "Confirmation message for the user with number of rows returned or affected."}
+          },
+          "required": ["sql", "explanation", "result", "confirmation"],
+          "additionalProperties": false
+        }
+      }}
     });
 
     // Yield text chunks as they arrive from the stream
