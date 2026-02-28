@@ -44,14 +44,13 @@ export interface ChatMessage {
   content: string;
 }
 
-export async function queryDatabase(
+export async function* queryDatabaseStream(
   chatHistory: ChatMessage[],
   connectionString: string,
-) {
+): AsyncGenerator<string, void, unknown> {
   const { mcpClient, anthropicTools } = await getMCPClient(connectionString);
 
   // Convert chat history to Anthropic message format
-  // Filter out 'system' messages as Anthropic handles system prompt separately
   const messages: any[] = chatHistory
     .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
     .map((msg) => ({
@@ -60,7 +59,7 @@ export async function queryDatabase(
     }));
 
   while (true) {
-    const response = await anthropic.messages.create({
+    const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       tools: anthropicTools,
@@ -69,15 +68,47 @@ export async function queryDatabase(
       messages,
     });
 
-    messages.push({ role: 'assistant', content: response.content });
+    let fullContent: any[] = [];
+    let currentText = '';
 
-    if (response.stop_reason === 'end_turn') {
-      return response.content.find((b: any) => b.type === 'text')?.text;
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta') {
+        const delta = event.delta as any;
+        if (delta.type === 'text_delta') {
+          currentText += delta.text;
+          yield delta.text;
+        }
+      } else if (event.type === 'content_block_start') {
+        const block = event.content_block as any;
+        if (block.type === 'tool_use') {
+          fullContent.push({ ...block, input: '' });
+        } else if (block.type === 'text') {
+          fullContent.push({ type: 'text', text: '' });
+        }
+      } else if (event.type === 'content_block_stop') {
+        // Update the last content block with accumulated text
+        if (fullContent.length > 0) {
+          const lastBlock = fullContent[fullContent.length - 1];
+          if (lastBlock.type === 'text') {
+            lastBlock.text = currentText;
+          }
+        }
+      }
     }
 
+    const finalMessage = await stream.finalMessage();
+    fullContent = finalMessage.content;
+    messages.push({ role: 'assistant', content: fullContent });
+
+    if (finalMessage.stop_reason === 'end_turn') {
+      return;
+    }
+
+    // Handle tool calls
     const toolResults = [];
-    for (const block of response.content) {
+    for (const block of fullContent) {
       if (block.type === 'tool_use') {
+        yield `\n\n🔧 *Executing tool: ${block.name}...*\n\n`;
         const result = await mcpClient.callTool({
           name: block.name,
           arguments: block.input,
@@ -94,6 +125,20 @@ export async function queryDatabase(
   }
 }
 
+export async function queryDatabase(
+  chatHistory: ChatMessage[],
+  connectionString: string,
+) {
+  let result = '';
+  for await (const chunk of queryDatabaseStream(
+    chatHistory,
+    connectionString,
+  )) {
+    result += chunk;
+  }
+  return result;
+}
+
 export async function initializeSchema(connectionString: string) {
   const { mcpClient } = await getMCPClient(connectionString);
 
@@ -106,7 +151,7 @@ export async function initializeSchema(connectionString: string) {
   // Parse the tables list
   const tablesContent = result.content as Array<{ type: string; text: string }>;
   const tablesText = tablesContent.find((c) => c.type === 'text')?.text || '';
-  
+
   // Get detailed schema for each table
   const tableNames = tablesText
     .split('\n')
@@ -115,15 +160,20 @@ export async function initializeSchema(connectionString: string) {
     .filter(Boolean);
 
   const schemaDetails: string[] = [];
-  
-  for (const tableName of tableNames.slice(0, 10)) { // Limit to first 10 tables
+
+  for (const tableName of tableNames.slice(0, 10)) {
+    // Limit to first 10 tables
     try {
       const schemaResult = await mcpClient.callTool({
         name: 'describe_table_schema',
         arguments: { table_name: tableName },
       });
-      const schemaContent = schemaResult.content as Array<{ type: string; text: string }>;
-      const schemaText = schemaContent.find((c) => c.type === 'text')?.text || '';
+      const schemaContent = schemaResult.content as Array<{
+        type: string;
+        text: string;
+      }>;
+      const schemaText =
+        schemaContent.find((c) => c.type === 'text')?.text || '';
       schemaDetails.push(`Table: ${tableName}\n${schemaText}`);
     } catch {
       // Skip tables that can't be described
