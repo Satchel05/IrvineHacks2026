@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import FancyCodeBlock from './FancyCodeBlock';
+import FancyCodeBlock from "./FancyCodeBlock";
 
 interface CollapsibleSqlBlockProps {
   sql: string;
@@ -32,16 +32,19 @@ export function CollapsibleSqlBlock({ sql }: CollapsibleSqlBlockProps) {
   };
 
   return (
-    <div className='rounded-md border bg-muted/50 overflow-hidden text-sm'>
-      <div className='flex items-center justify-between px-3 py-1.5 border-b bg-muted text-muted-foreground text-xs font-mono'>
+    <div className="rounded-md border bg-muted/50 overflow-hidden text-sm w-full max-w-full [&_pre]:!whitespace-pre-wrap [&_code]:!whitespace-pre-wrap [&_*]:!overflow-wrap-anywhere">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted text-muted-foreground text-xs font-mono">
         <span>SQL</span>
         <button
           onClick={copy}
-          className='hover:text-foreground transition-colors'>
-          {copied ? 'Copied!' : 'Copy'}
+          className="hover:text-foreground transition-colors"
+        >
+          {copied ? "Copied!" : "Copy"}
         </button>
       </div>
-      <FancyCodeBlock language='sql'>{sql}</FancyCodeBlock>
+      <div className="overflow-hidden [&_pre]:!whitespace-pre-wrap [&_code]:!whitespace-pre-wrap">
+        <FancyCodeBlock language="sql">{sql}</FancyCodeBlock>
+      </div>
     </div>
   );
 }

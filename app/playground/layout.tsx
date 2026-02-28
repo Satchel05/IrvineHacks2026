@@ -297,7 +297,7 @@ export default function PlaygroundLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <main className="flex-1">
+      <main className="flex-1 min-w-0 overflow-hidden">
         <div className="p-4">
           <SidebarTrigger />
         </div>

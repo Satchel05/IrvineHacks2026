@@ -25,7 +25,7 @@ import {
   extractPrefixLines,
 } from "./structured";
 import { RiskHeader } from "./RiskHeader";
-import { CollapsibleSqlBlock } from "./CollapsibleSqlBlock";
+import { CollapsibleSqlBlock } from "./collapsiblesqlblock";
 import { ResultTable, AffectedRecords } from "./ResultTable";
 import { NotesSection, ActionButtons } from "./QueryActions";
 
@@ -55,12 +55,16 @@ export function AssistantMessage({
   const structured = extractStructured(content);
 
   // Local decision — replaced by persisted value on re-mount
-  const [localDecision, setLocalDecision] = useState<"accepted" | "rejected" | null>(null);
+  const [localDecision, setLocalDecision] = useState<
+    "accepted" | "rejected" | null
+  >(null);
   const decision = structured?.confirmation_decision ?? localDecision;
 
   // Keep the state-change callback ref stable to avoid effect re-runs
   const onPendingChangeRef = useRef(onConfirmationStateChange);
-  useEffect(() => { onPendingChangeRef.current = onConfirmationStateChange; });
+  useEffect(() => {
+    onPendingChangeRef.current = onConfirmationStateChange;
+  });
 
   // Notify parent whenever pending state changes
   useEffect(() => {
@@ -71,7 +75,11 @@ export function AssistantMessage({
 
   // ── Non-JSON fallback (tool status lines, errors, etc.) ────────────────
   if (!structured) {
-    return <pre className="whitespace-pre-wrap text-sm font-sans">{content}</pre>;
+    return (
+      <pre className="whitespace-pre-wrap break-words text-sm font-sans">
+        {content}
+      </pre>
+    );
   }
 
   // ── Destructure parsed response ────────────────────────────────────────
@@ -106,15 +114,15 @@ export function AssistantMessage({
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="text-sm rounded-lg border overflow-hidden">
-
+    <div className="text-sm rounded-lg border overflow-hidden w-full max-w-full">
       <RiskHeader riskCfg={riskCfg} />
 
       <div className="p-4 space-y-4 bg-background">
-
         {/* Tool-call status lines, e.g. "Executing tool: query..." */}
         {prefixLines.map((line, i) => (
-          <p key={i} className="text-muted-foreground text-xs">{line}</p>
+          <p key={i} className="text-muted-foreground text-xs">
+            {line}
+          </p>
         ))}
 
         {hasSql && <CollapsibleSqlBlock sql={sqlString.trim()} />}
@@ -124,11 +132,19 @@ export function AssistantMessage({
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               What this query will do:
             </p>
-            <p className="text-sm leading-relaxed text-foreground/90">{explanation}</p>
+            <p className="text-sm leading-relaxed text-foreground/90">
+              {explanation}
+            </p>
           </div>
         )}
 
-        {result && <AffectedRecords result={result} sql={sqlString} countColor={riskCfg.countColor} />}
+        {result && (
+          <AffectedRecords
+            result={result}
+            sql={sqlString}
+            countColor={riskCfg.countColor}
+          />
+        )}
         {result && <ResultTable result={result} />}
 
         {cleanedConfirmation && (
@@ -147,7 +163,6 @@ export function AssistantMessage({
           onConfirm={handleConfirm}
           onExplain={onExplain}
         />
-
       </div>
     </div>
   );

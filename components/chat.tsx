@@ -70,23 +70,25 @@ function Avatar({ isUser }: { isUser: boolean }) {
 function MessageBubble({
   message,
   onConfirm,
-  onExplain,           // ← NEW
+  onExplain, // ← NEW
   onConfirmationStateChange,
   onDecisionPersist,
 }: {
   message: Message;
   onConfirm?: (accepted: boolean) => void;
-  onExplain?: () => void;              // ← NEW
+  onExplain?: () => void; // ← NEW
   onConfirmationStateChange?: (messageId: string, pending: boolean) => void;
   onDecisionPersist?: (decision: "accepted" | "rejected") => void;
 }) {
   const isUser = message.role === "user";
   return (
-    <div className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}>
+    <div
+      className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}
+    >
       <Avatar isUser={isUser} />
       <div
         className={cn(
-          "flex-1 max-w-[85%]",
+          "flex-1 max-w-[85%] min-w-0 overflow-hidden",
           // User bubbles keep their colored pill; assistant messages are now
           // their own self-contained cards — no extra bg wrapper needed.
           isUser
@@ -95,13 +97,15 @@ function MessageBubble({
         )}
       >
         {isUser ? (
-          <pre className="whitespace-pre-wrap text-sm font-sans">{message.content}</pre>
+          <pre className="whitespace-pre-wrap break-words text-sm font-sans">
+            {message.content}
+          </pre>
         ) : (
           // <pre className="whitespace-pre-wrap text-sm font-sans">{message.content}</pre>
           <AssistantMessage
             content={message.content}
             onConfirm={onConfirm}
-            onExplain={onExplain}    // ← NEW
+            onExplain={onExplain} // ← NEW
             onConfirmationStateChange={(pending) =>
               onConfirmationStateChange?.(message.id, pending)
             }
@@ -445,9 +449,9 @@ export function Chat({ connectionString }: ChatProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* ── Messages area ────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {messages.length === 0 ? (
           <EmptyState />
         ) : (
@@ -469,11 +473,11 @@ export function Chat({ connectionString }: ChatProps) {
                   )
                 }
                 onExplain={() =>
-  sendMessage(
-    "Can you explain what this query does in more detail, including any risks or side effects?",
-    { ignorePendingLock: true }
-  )
-}
+                  sendMessage(
+                    "Can you explain what this query does in more detail, including any risks or side effects?",
+                    { ignorePendingLock: true },
+                  )
+                }
               />
             ))}
             {isLoading && <ThinkingIndicator />}
