@@ -468,6 +468,12 @@ export function Chat({ connectionString }: ChatProps) {
                     { ignorePendingLock: true },
                   )
                 }
+                onExplain={() =>
+  sendMessage(
+    "Can you explain what this query does in more detail, including any risks or side effects?",
+    { ignorePendingLock: true }
+  )
+}
               />
             ))}
             {isLoading && <ThinkingIndicator />}
@@ -479,14 +485,6 @@ export function Chat({ connectionString }: ChatProps) {
 
       {/* ── Input area ───────────────────────────────────────────────────── */}
       <div className="border-t p-4">
-        <div className="flex-1">
-  <button
-  onClick={() => sendMessage("Can you explain what this query does in more detail, including any risks or side effects?")}
-  className="px-2 py-2 bg-gray-300 text-white font-small rounded-lg shadow-md hover:bg-gray-400 active:scale-95 transition-all duration-200 ease-in-out"
->
-  Explain more
-</button>
-</div>
         <form onSubmit={send} className="flex gap-2">
           <Textarea
             value={input}
