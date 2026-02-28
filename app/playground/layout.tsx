@@ -12,9 +12,9 @@
  *  - To change the sidebar footer branding, edit the `<SidebarFooter>` block.
  */
 
-"use client";
+'use client';
 
-import { useState, useRef } from "react";
+import { useState, useRef } from 'react';
 import {
   Database,
   Home,
@@ -23,7 +23,8 @@ import {
   Plus,
   MessageSquare,
   Trash2,
-} from "lucide-react";
+  BotMessageSquare,
+} from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -36,10 +37,10 @@ import {
   SidebarProvider,
   SidebarTrigger,
   SidebarFooter,
-} from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useChatStore } from "@/app/store/chatStore";
+} from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useChatStore } from '@/app/store/chatStore';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -49,10 +50,10 @@ import { useChatStore } from "@/app/store/chatStore";
  * Links with `url: "#"` are placeholders — wire them up when those pages exist.
  */
 const NAV_ITEMS = [
-  { title: "Home", url: "/", icon: Home },
-  { title: "Playground", url: "/playground", icon: Play },
-  { title: "Database", url: "#", icon: Database },
-  { title: "Settings", url: "#", icon: Settings },
+  { title: 'Home', url: '/', icon: Home },
+  { title: 'Playground', url: '/playground', icon: Play },
+  { title: 'Database', url: '#', icon: Database },
+  { title: 'Settings', url: '#', icon: Settings },
 ] as const;
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
@@ -100,17 +101,17 @@ function InlineRenameInput({
         onBlur={commit}
         onKeyDown={(e) => {
           e.stopPropagation();
-          if (e.key === "Enter") commit();
-          if (e.key === "Escape") onCancel();
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') onCancel();
         }}
-        className="h-7 flex-1"
+        className='h-7 flex-1'
       />
       {/* Inline delete button while editing */}
       {onDeleteClick && (
         <div
-          role="button"
+          role='button'
           tabIndex={0}
-          className="h-5 w-5 flex items-center justify-center rounded-md hover:bg-accent ml-1"
+          className='h-5 w-5 flex items-center justify-center rounded-md hover:bg-accent ml-1'
           onMouseDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -120,9 +121,8 @@ function InlineRenameInput({
             e.preventDefault();
             e.stopPropagation();
             onDeleteClick();
-          }}
-        >
-          <Trash2 className="h-3 w-3" />
+          }}>
+          <Trash2 className='h-3 w-3' />
         </div>
       )}
     </>
@@ -160,98 +160,117 @@ function AppSidebar() {
   return (
     <Sidebar>
       <SidebarContent>
-        {/* ── Navigation links ──────────────────────────────────────────── */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {NAV_ITEMS.map(({ title, url, icon: Icon }) => (
-                <SidebarMenuItem key={title}>
-                  <SidebarMenuButton asChild>
-                    <a href={url}>
-                      <Icon />
-                      <span>{title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* ── Sidebar Title ────────────────────────────────────────────── */}
+        <div className='flex items-center gap-3 px-4 pt-4 pb-2'>
+          <span
+            style={{
+              background: '#6B74C9',
+              borderRadius: '10px',
+              padding: '8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <BotMessageSquare className='h-6 w-6 text-white' />
+          </span>
+          <h1 className='text-2xl font-bold text-sidebar-foreground/80 tracking-tight'>
+            Envoy
+          </h1>
+        </div>
 
         {/* ── Chat session list ─────────────────────────────────────────── */}
         <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center justify-between">
-            <span>Chats</span>
+          <SidebarGroupLabel className='flex items-center justify-between'>
+            <span>CONNECTIONS</span>
             {/* Plus button: create a new blank session */}
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5"
-              onClick={() => createSession()}
-            >
-              <Plus className="h-4 w-4" />
+              variant='ghost'
+              size='icon'
+              className='h-5 w-5'
+              onClick={() => createSession()}>
+              <Plus className='h-4 w-4' />
             </Button>
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {sorted.length === 0 ? (
+              {sorted.length === 0 ?
                 <p
-                  key="empty-state"
-                  className="px-2 text-sm text-muted-foreground"
-                >
+                  key='empty-state'
+                  className='px-2 text-sm text-muted-foreground'>
                   No chats yet
                 </p>
-              ) : (
-                sorted.map((session) => (
+              : sorted.map((session) => (
                   <SidebarMenuItem key={session.id}>
                     <SidebarMenuButton
                       isActive={session.id === activeId}
                       onClick={() => setActive(session.id)}
-                      className="group"
-                    >
-                      <MessageSquare className="h-4 w-4" />
+                      className='group'
+                      style={{
+                        width: '327px',
+                        height: '68px',
+                        background:
+                          session.id === activeId ?
+                            'rgba(82,82,234,0.15)'
+                          : undefined,
+                        border:
+                          session.id === activeId ?
+                            '1.5px solid rgba(82,82,234,0.3)'
+                          : '1.5px solid transparent',
+                        borderRadius: '12px',
+                      }}>
+                      <Database className='h-4 w-4' />
 
-                      {/* Show rename input OR static title */}
-                      {editingId === session.id ? (
-                        <InlineRenameInput
-                          value={session.title}
-                          onSave={(t) => {
-                            rename(session.id, t);
-                            setEditingId(null);
-                          }}
-                          onCancel={() => setEditingId(null)}
-                          onDeleteClick={() => {
-                            setEditingId(null);
-                            remove(session.id);
-                          }}
-                        />
-                      ) : (
-                        <span
-                          className="truncate flex-1"
-                          onDoubleClick={(e) => {
-                            e.stopPropagation();
-                            setEditingId(session.id);
-                          }}
-                          title="Double-click to rename"
-                        >
-                          {session.title}
-                        </span>
-                      )}
+                      <div className='flex flex-col flex-1'>
+                        {/* Show rename input OR static title */}
+                        {editingId === session.id ?
+                          <InlineRenameInput
+                            value={session.title}
+                            onSave={(t) => {
+                              rename(session.id, t);
+                              setEditingId(null);
+                            }}
+                            onCancel={() => setEditingId(null)}
+                            onDeleteClick={() => {
+                              setEditingId(null);
+                              remove(session.id);
+                            }}
+                          />
+                        : <>
+                            <span
+                              className='truncate font-medium text-[14px] text-sidebar-foreground/70'
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setEditingId(session.id);
+                              }}
+                              title='Double-click to rename'>
+                              {session.title}
+                            </span>
+                            <span className='text-xs text-sidebar-foreground/40 mt-1 block'>
+                              {session.connectionString?.slice(0, 20) || ''}
+                              {(
+                                session.connectionString &&
+                                session.connectionString.length > 20
+                              ) ?
+                                '...'
+                              : ''}
+                            </span>
+                          </>
+                        }
+                      </div>
 
                       {/* Trash icon — only visible on hover (via group-hover), hidden when editing */}
                       {editingId !== session.id && (
                         <div
-                          role="button"
+                          role='button'
                           tabIndex={0}
-                          className="h-5 w-5 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent"
+                          className='h-5 w-5 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent'
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             remove(session.id);
                           }}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
+                            if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault();
                               e.stopPropagation();
                               remove(session.id);
@@ -260,23 +279,34 @@ function AppSidebar() {
                           onMouseDown={(e) => {
                             // Prevent focus change that might trigger blur handlers
                             e.preventDefault();
-                          }}
-                        >
-                          <Trash2 className="h-3 w-3" />
+                          }}>
+                          <Trash2 className='h-3 w-3' />
                         </div>
                       )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))
-              )}
+              }
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Sidebar footer — branding */}
+      {/* Sidebar footer — branding and settings button at bottom */}
       <SidebarFooter>
-        <p className="text-xs text-muted-foreground px-2">Postgres MCP</p>
+        <div className='pb-2'>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <a href='#'>
+                  <Settings />
+                  <span>Settings</span>
+                </a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </div>
+        <p className='text-xs text-muted-foreground px-2 mt-2'>Postgres MCP</p>
       </SidebarFooter>
     </Sidebar>
   );
@@ -297,8 +327,8 @@ export default function PlaygroundLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <main className="flex-1 min-w-0 overflow-hidden">
-        <div className="p-4">
+      <main className='flex-1 min-w-0 overflow-hidden'>
+        <div className='p-4'>
           <SidebarTrigger />
         </div>
         {children}
