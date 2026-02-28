@@ -12,6 +12,7 @@ export interface StructuredResponse {
   explanation: string;
   /** JSON-stringified query result payload. */
   result: string;
+  rowCount: number | null;
   confirmation: string;
   confirmation_required?: boolean;
   user_confirmed?: boolean;

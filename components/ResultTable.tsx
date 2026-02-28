@@ -152,18 +152,11 @@ function isWriteOperation(sql: string): boolean {
 function getRowCount(result: string, sql: string): number | null {
   try {
     const parsed = JSON.parse(result);
-
-    // Explicit driver fields (present after execution)
-    if (typeof parsed?.rowCount === "number" && parsed.rowCount > 0) return parsed.rowCount;
-    if (typeof parsed?.rowsAffected === "number" && parsed.rowsAffected > 0) return parsed.rowsAffected;
-
-    // For writes: don't use array length — it's just the preview data
-    if (isWriteOperation(sql)) return null;
-
-    // For reads: count the actual result rows
+    if (typeof parsed?.rowCount === "number") return parsed.rowCount;
+    // Fallback: For SELECT queries, count rows in array
     const rows = Array.isArray(parsed) ? parsed : parsed?.rows ?? parsed?.data ?? null;
     if (Array.isArray(rows) && rows.length > 0) return rows.length;
-  } catch { /* ignore */ }
+  } catch { }
   return null;
 }
 
@@ -180,17 +173,16 @@ export function AffectedRecords({ result, sql, countColor }: AffectedRecordsProp
 
   const isWrite = isWriteOperation(sql);
 
-  return (
-    <div className="space-y-1">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        {isWrite ? "Rows Affected" : "Rows Returned"}
-      </p>
-      <p className={cn("text-2xl font-bold", countColor)}>
-        {count.toLocaleString()}{" "}
-        <span className="text-sm font-normal text-muted-foreground">
-          {count === 1 ? "row" : "rows"}
-        </span>
-      </p>
-    </div>
+  return (<>
+    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+  {isWriteOperation(sql) ? "Rows Affected" : "Rows Returned"}
+</p>
+<p className={cn("text-2xl font-bold", countColor)}>
+  {count?.toLocaleString() ?? "0"}{" "}
+  <span className="text-sm font-normal text-muted-foreground">
+    {count === 1 ? "row" : "rows"}
+  </span>
+</p>
+</>
   );
 }
