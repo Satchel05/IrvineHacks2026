@@ -12,13 +12,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Database } from 'lucide-react';
+import { Database, Eye, EyeOff } from 'lucide-react';
 import { useChatStore } from '@/app/store/chatStore';
 
 export default function PlaygroundPage() {
   const [connectionString, setConnectionString] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [tempConnection, setTempConnection] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const activeSession = useChatStore((s) =>
     s.activeSessionId ? s.sessions[s.activeSessionId] : null
@@ -55,14 +56,28 @@ export default function PlaygroundPage() {
             <form onSubmit={handleConnect} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="connectionString">Connection String</Label>
-                <Input
-                  id="connectionString"
-                  type="password"
-                  placeholder="postgresql://user:password@host:port/database"
-                  value={tempConnection}
-                  onChange={(e) => setTempConnection(e.target.value)}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="connectionString"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="postgresql://user:password@host:port/database"
+                    value={tempConnection}
+                    onChange={(e) => setTempConnection(e.target.value)}
+                    className="pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
               <Button type="submit" className="w-full">
                 Connect
