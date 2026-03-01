@@ -1,4 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
+import type { RiskAgentResult } from '@/app/lib/utils/types';
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const RISK_DESCRIPTION = `
@@ -36,11 +38,6 @@ Always choose the highest matching category.
 const ROW_ESTIMATE_DESCRIPTION =
   'Number of rows returned (SELECT) or affected (INSERT/UPDATE/DELETE).';
 
-interface RiskAgentResult {
-  risk: number;
-  rowEstimate: number;
-}
-
 // Step 2 in pipeline: NL to SQL
 export async function riskAgent(
   tentativeSql: string,
@@ -74,7 +71,8 @@ export async function riskAgent(
     },
   });
 
-  const text = response.content[0]?.text;
+  const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
+  const text = block?.text;
   if (!text) throw new Error('riskAgent: empty response from model');
 
   try {

@@ -328,27 +328,9 @@ export function Chat({ connectionString }: ChatProps) {
           role: "assistant",
           content: "",
         });
-        const reader = res.body?.getReader();
-        if (!reader) throw new Error("No response body");
 
-        const decoder = new TextDecoder();
-        let accumulated = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-
-          if (chunk.startsWith("__TOOL_STATUS__:")) {
-            const toolName = chunk.replace("__TOOL_STATUS__:", "").trim();
-            const next = toolName === "DONE" ? null : toolName;
-            activeToolNameRef.current = next;
-            setActiveToolName(next); // triggers re-render so badge updates
-            continue; // ← do NOT touch accumulated
-          }
-
-          accumulated += chunk;
-          updateMessage(activeId, asstMsg.id, accumulated);
-        }
+        const data = await res.json();
+        updateMessage(activeId, asstMsg.id, JSON.stringify(data));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Something went wrong";
         addMessage(activeId, { role: "assistant", content: `Error: ${msg}` });
@@ -490,14 +472,45 @@ export function Chat({ connectionString }: ChatProps) {
                 onDecisionPersist={(decision) =>
                   handleDecisionPersist(m.id, decision)
                 }
-                onConfirm={(accepted) =>
-                  sendMessage(
-                    accepted
-                      ? "Yes, confirmed. Please proceed with the operation."
-                      : "No, cancel the operation. Do not execute it.",
-                    { ignorePendingLock: true },
-                  )
-                }
+                onConfirm={async (accepted) => {
+                  try {
+                    const res = await fetch("/api/confirm", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        connectionString,
+                        action: accepted ? "approve" : "reject",
+                      }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok)
+                      throw new Error(data.error || "Confirmation failed");
+                    addMessage(activeId, {
+                      role: "assistant",
+                      content: JSON.stringify({
+                        sql: "",
+                        explanation: accepted
+                          ? "Operation committed successfully."
+                          : "Operation rolled back. No changes were made.",
+                        result: "",
+                        rowCount: null,
+                        confirmation: "",
+                        confirmation_required: false,
+                        user_confirmed: accepted,
+                        risk: 0,
+                      }),
+                    });
+                  } catch (err) {
+                    const msg =
+                      err instanceof Error
+                        ? err.message
+                        : "Confirmation failed";
+                    addMessage(activeId, {
+                      role: "assistant",
+                      content: `Error: ${msg}`,
+                    });
+                  }
+                }}
                 onExplain={() =>
                   sendMessage(
                     "Can you explain what this query does in more detail, including any risks or side effects?",
