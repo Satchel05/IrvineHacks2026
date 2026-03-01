@@ -1,24 +1,39 @@
-// app/api/schema/route.ts
-import { initializeSchema } from '../../lib/ai';
-import { NextRequest, NextResponse } from 'next/server';
+/**
+ * api/schema/route.ts — Database schema initialization endpoint.
+ *
+ * POST /api/schema
+ *   Body: { connectionString: string }
+ *   Response: { schema: { tables: string[], details: string } }
+ *
+ * Called once when a chat session first connects to a database.
+ * The response is used by `chat.tsx` to display a "Schema learned!" message.
+ *
+ * HOW TO EDIT:
+ *  - To cache schema results, add a Map keyed by connectionString.
+ *  - To add authentication, add a check before the validation block.
+ */
+
+import { NextRequest } from 'next/server';
+import { initializeSchema, clearSchemaCache } from '@/app/lib/mcp';
 
 export async function POST(req: NextRequest) {
-  const { connectionString } = await req.json();
+  const { connectionString, refresh } = await req.json();
 
-  if (!connectionString) {
-    return NextResponse.json(
+  if (!connectionString)
+    return Response.json(
       { error: 'Connection string is required' },
       { status: 400 },
     );
-  }
 
   try {
+    // Allow forcing a re-fetch of schema details
+    if (refresh) clearSchemaCache(connectionString);
+
+    // Calls MCP's list_tables + describe_table_schema (see ai.ts)
     const schema = await initializeSchema(connectionString);
-    return NextResponse.json({ schema });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch schema' },
-      { status: 500 },
-    );
+    return Response.json({ schema });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Failed to fetch schema';
+    return Response.json({ error: msg }, { status: 500 });
   }
 }
