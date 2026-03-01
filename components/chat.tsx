@@ -22,7 +22,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useChatStore, type Message } from "@/app/store/chatStore";
-import { Send, User, Bot, Loader2, Database } from "lucide-react";
+import { Send, User, Bot } from "lucide-react";
+import { LoadingAnimation } from "./LoadingAnimation";
 import { AssistantMessage } from "./assistantmessage";
 import { cn } from "@/lib/utils";
 import { useTheme } from "./theme-provider";
@@ -175,13 +176,15 @@ function EmptyState() {
 /** Full-screen loading state shown while fetching schema for the first time. */
 function SchemaLoadingState() {
   return (
-    <div className="flex-1 flex items-center justify-center text-muted-foreground">
-      <div className="text-center">
-        <Database className="h-12 w-12 mx-auto mb-4 animate-pulse" />
-        <p className="font-medium">Learning your database schema...</p>
-        <p className="text-sm mt-2">This may take a few seconds</p>
-        <Loader2 className="h-5 w-5 mx-auto mt-4 animate-spin" />
-      </div>
+    <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+      <LoadingAnimation
+        title="Learning your database schema..."
+        subtitle="This may take a few seconds"
+        iconSize={140}
+        spinnerSize={56}
+        gap={24}
+        spinnerColor="#3B82F6"
+      />
     </div>
   );
 }
