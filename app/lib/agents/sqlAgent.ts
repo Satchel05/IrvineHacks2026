@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { extractSqlFromContentBlocks } from 'app/lib/utils/extractSqlFromContentBlocks';
+import { extractSqlFromContentBlocks } from '@/app/lib/utils/extractSqlFromContentBlocks';
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // Step 1 in pipeline: NL to SQL
