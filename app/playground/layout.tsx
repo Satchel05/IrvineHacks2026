@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
+import { useSidebar } from "@/components/ui/sidebar";
 import {
   Database,
   Home,
@@ -35,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useChatStore } from "@/app/store/chatStore";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { title: "Home", url: "/", icon: Home },
@@ -42,6 +44,25 @@ const NAV_ITEMS = [
   { title: "Database", url: "#", icon: Database },
   { title: "Settings", url: "#", icon: Settings },
 ] as const;
+
+function SidebarKeybindListener() {
+  const { toggle } = useSidebar(); // now safe, inside provider
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = document.activeElement?.tagName;
+      if (e.key === "Tab" && !["INPUT", "TEXTAREA", "SELECT"].includes(activeTag || "")) {
+        e.preventDefault();
+        toggle();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggle]);
+
+  return null; // this component renders nothing
+}
 
 function InlineRenameInput({
   value,
@@ -98,7 +119,7 @@ function AppSidebar() {
         <div className="flex items-center gap-3 px-4 pt-4 pb-2">
           <span
             style={{
-              background: "#6B74C9",
+              background: "#6366F1",
               borderRadius: "10px",
               padding: "8px",
               display: "inline-flex",
@@ -148,6 +169,8 @@ function AppSidebar() {
                               session.id === activeId
                                 ? "rgba(82,82,234,0.15)"
                                 : undefined,
+                            color: 
+                            session.id === activeId ? "#6366F1" : undefined,
                             border:
                               session.id === activeId
                                 ? "1.5px solid rgba(82,82,234,0.3)"
@@ -169,7 +192,7 @@ function AppSidebar() {
                               />
                             ) : (
                               <>
-                                <span className="truncate font-medium text-[14px] text-sidebar-foreground/70">
+                                <span className={cn("truncate font-medium text-[14px] text-sidebar-foreground/70", session.id === activeId ? "text-color-indigo-500 font-bold": "")}>
                                   {session.title}
                                 </span>
                                 <span className="text-xs text-sidebar-foreground/40 mt-1 block truncate">
@@ -229,18 +252,26 @@ function AppSidebar() {
   );
 }
 
-export default function PlaygroundLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function PlaygroundLayout({ children }: { children: React.ReactNode }) {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd (Mac) or Ctrl (Windows/Linux) + B
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault(); // prevent browser bookmark
+        setSidebarOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
-    <SidebarProvider>
+    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
       <AppSidebar />
       <main className="flex-1 min-w-0 overflow-hidden">
-        <div className="p-4">
-          <SidebarTrigger />
-        </div>
         {children}
       </main>
     </SidebarProvider>

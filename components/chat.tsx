@@ -58,15 +58,15 @@ function Avatar({ isUser }: { isUser: boolean }) {
     theme === "dark" ? "bg-black" : "bg-muted"
 
   const textPrimaryColor =
-    theme === "dark" ? "text-primary-white" : "text-primary-black"
+    theme === "dark" ? "text-primary-white/75" : "text-primary-black/70"
 
   return (
     <div
       className={cn(
         "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
         isUser
-          ? cn("bg-primary", backgroundColor)
-          : backgroundColor
+          ? cn("bg-primary", backgroundColor, textPrimaryColor)
+          : textPrimaryColor, backgroundColor
       )}
     >
       {isUser ? (
@@ -101,8 +101,8 @@ function MessageBubble({
 }) {
   const isUser = message.role === "user";
   const { theme } = useTheme()
-  const msgBubbleColor = theme === "dark" ? "bg-black" : "bg-muted/50";
-  const textColor = theme === "dark" ? "color-white" : "color-black"
+  const msgBubbleColor = theme === "dark" ? "bg-black" : "bg-gray-50"; // dark gray instead of pure black / very light gray
+  const textColor = theme === "dark" ? "text-white/75" : "text-black/70";
   return (
     <div
       className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}
@@ -115,11 +115,11 @@ function MessageBubble({
           // their own self-contained cards — no extra bg wrapper needed.
           isUser
             ? cn("rounded-lg px-4 py-2 ml-auto p-10px", msgBubbleColor, textColor)
-            : "",
+            : textColor,
         )}
       >
         {isUser ? (
-          <pre className="whitespace-pre-wrap padding-20px break-words text-sm font-sans">
+          <pre className={cn("whitespace-pre-wrap p-2 break-words text-sm font-sans", textColor)}>
             {message.content}
           </pre>
         ) : (
@@ -500,7 +500,7 @@ useEffect(() => {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex-1 min-h-0 flex flex-col">
       {/* ── Messages area ────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {messages.length === 0 ? (
@@ -548,38 +548,39 @@ useEffect(() => {
       </div>
 
       {/* ── Input area ───────────────────────────────────────────────────── */}
-      <div className="border-t p-4">
-        <form onSubmit={send} className="flex items-stretch gap-2">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              // Enter sends; Shift+Enter inserts a newline
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send(e);
-              }
-            }}
-            placeholder="Ask about your database..."
-            rows={2}
-            className="resize-none min-h-14 h-14"
-            disabled={isLoading || hasPendingConfirmation}
-          />
-          <Button
-            type="submit"
-            size="icon"
-            className="h-auto self-stretch w-14 rounded-md shrink-0"
-            disabled={isLoading || hasPendingConfirmation || !input.trim()}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
-        <p className="text-xs text-muted-foreground mt-2">
-          {hasPendingConfirmation
-            ? "Please Accept or Reject the pending confirmation before sending a new message"
-            : "Press Enter to send, Shift+Enter for new line"}
-        </p>
-      </div>
+      <div className="border-t p-3">
+  <form onSubmit={send} className="relative">
+    <Textarea
+      value={input}
+      onChange={(e) => setInput(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          send(e);
+        }
+      }}
+      placeholder="Ask a question or describe what you want to do..."
+      rows={2}
+      disabled={isLoading || hasPendingConfirmation}
+      className="resize-none min-h-14 h-16 pr-14"
+    />
+
+    <Button
+  type="submit"
+  size="icon"
+  disabled={isLoading || hasPendingConfirmation || !input.trim()}
+  className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-md bg-indigo-500 hover:bg-indigo-600 text-white"
+>
+  <Send className="h-4 w-4" />
+</Button>
+  </form>
+
+  <p className="text-xs text-muted-foreground mt-2">
+    {hasPendingConfirmation
+      ? "Please Accept or Reject the pending confirmation before sending a new message"
+      : "Press Enter to send, Shift+Enter for new line"}
+  </p>
+</div>
     </div>
   );
 }

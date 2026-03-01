@@ -229,16 +229,18 @@ export default function PlaygroundPage() {
 
   // ── Connected view ──────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-0.1rem)] overflow-hidden">
       <StatusBar
         title={session?.title ?? "Database"}
         onDisconnect={() => {
           if (activeId) setConnected(activeId, false);
         }}
       />
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <Chat connectionString={url} />
-      </div>
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+  <div className="h-full flex flex-col">
+    <Chat connectionString={url} />
+  </div>
+</div>
     </div>
   );
 }
