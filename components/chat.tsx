@@ -18,15 +18,15 @@
 
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { useChatStore, type Message } from "@/app/store/chatStore";
-import { Send, User, Bot } from "lucide-react";
-import { LoadingAnimation } from "./LoadingAnimation";
-import { AssistantMessage } from "./assistantmessage";
-import { cn } from "@/lib/utils";
-import { useTheme } from "./theme-provider";
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { useChatStore, type Message } from '@/app/store/chatStore';
+import { Send, User, Bot } from 'lucide-react';
+import { LoadingAnimation } from './LoadingAnimation';
+import { AssistantMessage } from './assistantmessage';
+import { cn } from '@/lib/utils';
+import { useTheme } from './theme-provider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,30 +53,27 @@ const schemaDone = new Set<string>();
 
 /** Round avatar circle — user (primary color) or bot (muted). */
 function Avatar({ isUser }: { isUser: boolean }) {
-  const { theme } = useTheme()
+  const { theme } = useTheme();
 
-  const backgroundColor =
-    theme === "dark" ? "bg-black" : "bg-muted"
+  const backgroundColor = theme === 'dark' ? 'bg-black' : 'bg-muted';
 
   const textPrimaryColor =
-    theme === "dark" ? "text-primary-white/75" : "text-primary-black/70"
+    theme === 'dark' ? 'text-primary-white/75' : 'text-primary-black/70';
 
   return (
     <div
       className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-        isUser
-          ? cn("bg-primary", backgroundColor, textPrimaryColor)
-          : textPrimaryColor, backgroundColor
-      )}
-    >
-      {isUser ? (
-        <User className="h-4 w-4" />
-      ) : (
-        <Bot className="h-4 w-4" />
-      )}
+        'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+        isUser ?
+          cn('bg-primary', backgroundColor, textPrimaryColor)
+        : textPrimaryColor,
+        backgroundColor,
+      )}>
+      {isUser ?
+        <User className='h-4 w-4' />
+      : <Bot className='h-4 w-4' />}
     </div>
-  )
+  );
 }
 
 /**
@@ -90,20 +87,20 @@ function MessageBubble({
   onExplain, // ← NEW
   onConfirmationStateChange,
   onDecisionPersist,
-  isLatest
+  isLatest,
 }: {
   message: Message;
   onConfirm?: (accepted: boolean) => void;
   activeToolName?: string | null;
   onExplain?: () => void; // ← NEW
   onConfirmationStateChange?: (messageId: string, pending: boolean) => void;
-  onDecisionPersist?: (decision: "accepted" | "rejected") => void;
+  onDecisionPersist?: (decision: 'accepted' | 'rejected') => void;
   isLatest?: boolean;
 }) {
-  const isUser = message.role === "user";
-  const { theme } = useTheme()
-  const msgBubbleColor = theme === "dark" ? "bg-black" : "bg-gray-50"; // dark gray instead of pure black / very light gray
-  const textColor = theme === "dark" ? "text-white/75" : "text-black/70";
+  const isUser = message.role === 'user';
+  const { theme } = useTheme();
+  const msgBubbleColor = theme === 'dark' ? 'bg-black' : 'bg-gray-50'; // dark gray instead of pure black / very light gray
+  const textColor = theme === 'dark' ? 'text-white/75' : 'text-black/70';
   return (
     <div
       className={cn(
@@ -113,32 +110,36 @@ function MessageBubble({
       <Avatar isUser={isUser} />
       <div
         className={cn(
-          "flex-1 max-w-[90%] min-w-0 overflow-hidden",
+          'flex-1 max-w-[90%] min-w-0 overflow-hidden',
           // User bubbles keep their colored pill; assistant messages are now
           // their own self-contained cards — no extra bg wrapper needed.
-          isUser
-            ? cn("rounded-lg px-4 py-2 ml-auto p-10px", msgBubbleColor, textColor)
-            : textColor,
-        )}
-      >
-        {isUser ? (
-          <pre className={cn("whitespace-pre-wrap p-2 break-words text-base font-sans", textColor)}>
-            {message.content}
-          </pre>
-        ) : (
-          // <pre className="whitespace-pre-wrap text-sm font-sans">{message.content}</pre>
-          <AssistantMessage
-            content={message.content}
-            activeToolName={activeToolName} // ← add this
-            onConfirm={onConfirm}
-            onExplain={onExplain} // ← NEW
-            isLatest={isLatest}
-            onConfirmationStateChange={(pending) =>
-              onConfirmationStateChange?.(message.id, pending)
-            }
-            onDecisionPersist={onDecisionPersist}
-          />
-        )}
+          isUser ?
+            cn('rounded-lg px-4 py-2 ml-auto p-10px', msgBubbleColor, textColor)
+          : textColor,
+        )}>
+        {
+          isUser ?
+            <pre
+              className={cn(
+                'whitespace-pre-wrap p-2 break-words text-base font-sans',
+                textColor,
+              )}>
+              {message.content}
+            </pre>
+            // <pre className="whitespace-pre-wrap text-sm font-sans">{message.content}</pre>
+          : <AssistantMessage
+              content={message.content}
+              activeToolName={activeToolName} // ← add this
+              onConfirm={onConfirm}
+              onExplain={onExplain} // ← NEW
+              isLatest={isLatest}
+              onConfirmationStateChange={(pending) =>
+                onConfirmationStateChange?.(message.id, pending)
+              }
+              onDecisionPersist={onDecisionPersist}
+            />
+
+        }
       </div>
     </div>
   );
@@ -161,16 +162,26 @@ function ThinkingIndicator() {
 }
 
 /** Placeholder shown when the session has no messages yet. */
-function EmptyState() {
+function EmptyState({ connectionString }: { connectionString: string }) {
+  const dbName = (() => {
+    try {
+      return (
+        new URL(connectionString).pathname.replace(/^\//, '').trim() ||
+        'your database'
+      );
+    } catch {
+      return 'your database';
+    }
+  })();
+
   return (
-    <div className='flex-1 flex items-center justify-center h-full min-h-75 text-muted-foreground'>
-      <div className='text-center'>
-        <Bot className='h-12 w-12 mx-auto mb-4 opacity-50' />
-        <p>Start a conversation by typing a message below.</p>
-        <p className='text-sm mt-2'>
-          Ask questions about your PostgreSQL database in natural language.
-        </p>
-      </div>
+    <div className='flex-1 flex flex-col items-center justify-center h-full min-h-75 gap-2'>
+      <h1 className='text-6xl font-bold tracking-tight text-foreground/80'>
+        Hello there.
+      </h1>
+      <p className='text-lg text-muted-foreground'>
+        Connected to <span className='font-semibold'>{dbName}</span>
+      </p>
     </div>
   );
 }
@@ -178,14 +189,14 @@ function EmptyState() {
 /** Full-screen loading state shown while fetching schema for the first time. */
 function SchemaLoadingState() {
   return (
-    <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+    <div className='flex min-h-0 w-full flex-1 items-center justify-center'>
       <LoadingAnimation
-        title="Learning your database schema..."
-        subtitle="This may take a few seconds"
+        title='Learning your database schema...'
+        subtitle='This may take a few seconds'
         iconSize={140}
         spinnerSize={56}
         gap={24}
-        spinnerColor="#3B82F6"
+        spinnerColor='#3B82F6'
       />
     </div>
   );
@@ -233,17 +244,17 @@ export function Chat({ connectionString }: ChatProps) {
   const lastContent = messages.at(-1)?.content;
   const prevSessionIdRef = useRef<string | null>(null);
 
-useEffect(() => {
-  if (!bottomRef.current) return;
+  useEffect(() => {
+    if (!bottomRef.current) return;
 
-  const isNewChat = prevSessionIdRef.current !== activeId;
-  prevSessionIdRef.current = activeId;
+    const isNewChat = prevSessionIdRef.current !== activeId;
+    prevSessionIdRef.current = activeId;
 
-  bottomRef.current.scrollIntoView({
-    behavior: isNewChat ? "auto" : "smooth", // jump for new chat, smooth for new messages
-    block: "end",
-  });
-}, [messages.length, lastContent, isLoading, activeToolName, activeId]);
+    bottomRef.current.scrollIntoView({
+      behavior: isNewChat ? 'auto' : 'smooth', // jump for new chat, smooth for new messages
+      block: 'end',
+    });
+  }, [messages.length, lastContent, isLoading, activeToolName, activeId]);
 
   // ── Create a default session if none exists (first visit) ───────────────
   useEffect(() => {
@@ -281,24 +292,7 @@ useEffect(() => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch schema');
 
-      // Build a friendly summary message
-      const tables: string[] = data.schema?.tables ?? [];
-      const preview = tables.slice(0, 5).join(', ') || 'none';
-      const more = tables.length > 5 ? ` and ${tables.length - 5} more` : '';
-
-      addMessage(activeId, {
-        role: 'assistant',
-        content: [
-          `🎉 **Schema learned successfully!**`,
-          ``,
-          `I've analyzed your database and found **${tables.length} table${tables.length !== 1 ? 's' : ''}**: ${preview}${more}.`,
-          ``,
-          `I'm ready to help you query your data! Try asking questions like:`,
-          `- "Show me all records from [table_name]"`,
-          `- "What columns are in [table_name]?"`,
-          `- "Find the top 10 most recent entries"`,
-        ].join('\n'),
-      });
+      // Schema loaded — no greeting message added; the Hello screen handles it
       schemaDone.add(key); // Mark as done — won't fetch again
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -487,11 +481,11 @@ useEffect(() => {
   }
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col">
+    <div className='flex-1 min-h-0 flex flex-col'>
       {/* ── Messages area ────────────────────────────────────────────────── */}
       <div className='flex-1 overflow-y-auto overflow-x-hidden'>
         {messages.length === 0 ?
-          <EmptyState />
+          <EmptyState connectionString={connectionString} />
         : <div className='space-y-2'>
             {messages.map((m) => (
               <MessageBubble
@@ -577,39 +571,40 @@ useEffect(() => {
       </div>
 
       {/* ── Input area ───────────────────────────────────────────────────── */}
-      <div className="border-t p-3">
-  <form onSubmit={send} className="relative">
-    <Textarea
-      value={input}
-      onChange={(e) => setInput(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          send(e);
-        }
-      }}
-      placeholder="Ask a question or describe what you want to do..."
-      rows={2}
-      disabled={isLoading || hasPendingConfirmation}
-      className="resize-none min-h-14 h-16 pr-14"
-    />
+      <div className='border-t p-3'>
+        <form
+          onSubmit={send}
+          className='relative'>
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send(e);
+              }
+            }}
+            placeholder='Ask a question or describe what you want to do...'
+            rows={2}
+            disabled={isLoading || hasPendingConfirmation}
+            className='resize-none min-h-14 h-16 pr-14'
+          />
 
-    <Button
-  type="submit"
-  size="icon"
-  disabled={isLoading || hasPendingConfirmation || !input.trim()}
-  className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-md bg-indigo-500 hover:bg-indigo-600 text-white"
->
-  <Send className="h-4 w-4" />
-</Button>
-  </form>
+          <Button
+            type='submit'
+            size='icon'
+            disabled={isLoading || hasPendingConfirmation || !input.trim()}
+            className='absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-md bg-indigo-500 hover:bg-indigo-600 text-white'>
+            <Send className='h-4 w-4' />
+          </Button>
+        </form>
 
-  <p className="text-xs text-muted-foreground mt-2">
-    {hasPendingConfirmation
-      ? "Please Accept or Reject the pending confirmation before sending a new message"
-      : "Press Enter to send, Shift+Enter for new line"}
-  </p>
-</div>
+        <p className='text-xs text-muted-foreground mt-2'>
+          {hasPendingConfirmation ?
+            'Please Accept or Reject the pending confirmation before sending a new message'
+          : 'Press Enter to send, Shift+Enter for new line'}
+        </p>
+      </div>
     </div>
   );
 }

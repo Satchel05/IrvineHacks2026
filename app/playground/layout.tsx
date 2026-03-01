@@ -280,7 +280,7 @@ export default function PlaygroundLayout({
   return (
     <>
       {/*
-        Inject a global <style> that:
+        Inject a globalz <style> that:
         1. Overrides shadcn's fixed sidebar container with our own transition.
         2. Kills the default offcanvas left-offset animation so only ours fires.
         3. Adds a spring-eased transition to both sidebar & content margin.
@@ -341,9 +341,7 @@ export default function PlaygroundLayout({
         data-sidebar-open={String(open)}
         data-sidebar-init={String(mounted.current)}
         className="flex w-full min-h-svh"
-        style={
-          { "--sidebar-width": `${SIDEBAR_WIDTH}px` } as React.CSSProperties
-        }
+        style={{ "--sidebar-width": `${SIDEBAR_WIDTH}px` } as React.CSSProperties}
       >
         <SidebarProvider
           open={open}
