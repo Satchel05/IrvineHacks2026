@@ -1,18 +1,18 @@
 import Anthropic from '@anthropic-ai/sdk';
-import {ChatMessage} from '@/app/lib/utils/types';
+import { getMCPClient } from '@/app/lib/mcp';
+import type { ChatMessage, MCPTextBlock } from '@/app/lib/utils/types';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const QUERY_EXPLANATION_DESCRIPTION = `
-You are a SQL expert who understands the schema and can explain SQL queries.
-Return a detailed explanation of the SQL query, including:
-- Purpose of the query
-- Key operations performed (SELECT, INSERT, UPDATE, DELETE)
-- Tables and columns involved
-- Any conditions or filters applied
-- Expected results or effects
+const SUMMARIZE_EXPLAIN_DESCRIPTION = `
+You are a SQL performance expert. You have been given the raw output of a PostgreSQL EXPLAIN ANALYZE query plan.
+Summarize it in plain English:
+- What the query does
+- How Postgres is executing it (seq scan, index scan, joins, etc.)
+- Any notable costs, row estimates, or actual times
+- Any potential performance concerns
 
-The explanation should be clear and concise, suitable for someone with basic SQL knowledge.
+Keep it concise and accessible to someone with basic SQL knowledge.
 `;
 
 const NO_QUERY_EXPLANATION_DESCRIPTION = `
@@ -21,76 +21,81 @@ Read through the chat history and provide detailed answers to the user's questio
 The explanation should be clear and concise, suitable for someone with basic to no SQL knowledge.
 `;
 
+const OUTPUT_SCHEMA = {
+  format: {
+    type: 'json_schema',
+    schema: {
+      type: 'object',
+      properties: { explanation: { type: 'string' } },
+      required: ['explanation'],
+      additionalProperties: false,
+    },
+  },
+} as const;
 
-
-// Step 2 in pipeline: NL to SQL
+// Step 2 in pipeline: explain SQL via MCP's EXPLAIN ANALYZE, then summarize with Claude
 export async function explainAgent(
   tentativeSql: string,
   chatHistory: ChatMessage[],
+  connectionString?: string,
 ): Promise<string> {
-    if(!tentativeSql) {
-        const messages: Anthropic.MessageParam[] = chatHistory
-            .filter((m) => m.role !== 'system')
-            .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
-        const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 1024,
-            system: NO_QUERY_EXPLANATION_DESCRIPTION,
-            messages,
-            output_config: {
-                format: {
-                    type: 'json_schema',
-                    schema: {
-                        type: 'object',
-                        properties: {
-                            explanation: {
-                                type: 'string',
-                            },
-                        },
-                        required: ['explanation'],
-                        additionalProperties: false,
-                    },
-                },
-            },
-        });
 
+  // No SQL — conversational fallback using chat history only
+  if (!tentativeSql) {
+    const messages: Anthropic.MessageParam[] = chatHistory
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: NO_QUERY_EXPLANATION_DESCRIPTION,
+      messages,
+      output_config: OUTPUT_SCHEMA,
+    });
     const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
-    const text = block?.text;
-    if (!text) throw new Error('explainAgent: empty response from model');
-    return text;
-    
-    
-    }else {
-        const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 1024,
-            system: QUERY_EXPLANATION_DESCRIPTION,
-            messages: [
-                { role: 'user', content: `Explain this SQL query:\n${tentativeSql}` },
-            ],
-            output_config: {
-                format: {
-                    type: 'json_schema',
-                    schema: {
-                        type: 'object',
-                        properties: {
-                            explanation: {
-                                type: 'string',
-                            },
-                        },
-                        required: ['explanation'],
-                        additionalProperties: false,
-                    },
-                },
-            },
-        });
-        const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
-        const text = block?.text;
-        if (!text) throw new Error('explainAgent: empty response from model');
-        return text;
-    }
+    if (!block?.text) throw new Error('explainAgent: empty response from model');
+    return block.text;
+  }
 
-    
+  // SQL provided + connection available — get real query plan from Postgres via MCP
+  if (connectionString) {
+    const { mcpClient } = await getMCPClient(connectionString);
+    const mcpResult = await mcpClient.callTool({
+      name: 'execute_query',
+      arguments: { query: `EXPLAIN ANALYZE ${tentativeSql}` },
+    });
 
+    const rawPlan = (mcpResult.content as MCPTextBlock[])
+      .filter((b) => b?.type === 'text' && typeof b.text === 'string')
+      .map((b) => b.text!)
+      .join('\n');
 
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: SUMMARIZE_EXPLAIN_DESCRIPTION,
+      messages: [
+        {
+          role: 'user',
+          content: `SQL:\n${tentativeSql}\n\nPostgres EXPLAIN ANALYZE output:\n${rawPlan}`,
+        },
+      ],
+      output_config: OUTPUT_SCHEMA,
+    });
+    const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
+    if (!block?.text) throw new Error('explainAgent: empty response from model');
+    return block.text;
+  }
+
+  // SQL provided but no connection — fall back to Claude's static analysis
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+    system: SUMMARIZE_EXPLAIN_DESCRIPTION,
+    messages: [{ role: 'user', content: `Explain this SQL query:\n${tentativeSql}` }],
+    output_config: OUTPUT_SCHEMA,
+  });
+  const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
+  if (!block?.text) throw new Error('explainAgent: empty response from model');
+  return block.text;
 }
