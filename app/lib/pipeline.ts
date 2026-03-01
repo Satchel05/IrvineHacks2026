@@ -14,28 +14,38 @@ export async function pipeline(
 
   const sql = await sqlAgent(question, schema.details, chatHistory);
 
-  const explanation = await explainAgent(
-    sql,
-    chatHistory,
-    connectionString,
-    question,
-  );
-
-  
-
-
-  if(sql){
+  if (sql) {
     const risk = await riskAgent(sql);
-    const results = await tableAgent(sql, connectionString, schema.details);
+    // Run tableAgent BEFORE explainAgent for write queries so that
+    // explainAgent's EXPLAIN doesn't interfere with the open transaction.
+    let results: Awaited<ReturnType<typeof tableAgent>> | null = null;
+    let sqlError: string | null = null;
+
+    try {
+      results = await tableAgent(sql, connectionString, schema.details);
+    } catch (err) {
+      // SQL execution failed (e.g. wrong column name). Capture the error so
+      // the explainAgent can describe it to the user instead of crashing.
+      sqlError = err instanceof Error ? err.message : String(err);
+    }
+
+    const explanation = await explainAgent(
+      sql,
+      chatHistory,
+      connectionString,
+      question,
+      sqlError,
+    );
     return { sql, results, explanation, risk };
-  }else{
+  } else {
+    const explanation = await explainAgent(
+      sql,
+      chatHistory,
+      connectionString,
+      question,
+    );
     const risk = null;
     const results = null;
     return { sql, results, explanation, risk };
   }
-  
-
-
-
-  
 }

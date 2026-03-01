@@ -97,15 +97,17 @@ export async function tableAgent(
   }
 
   // Write ops: open a transaction — caller must invoke approvePreview or rejectPreview
+  // Non-SELECT statements (BEGIN, INSERT, UPDATE, DELETE, COMMIT, ROLLBACK)
+  // MUST use execute_dml_ddl_dcl_tcl — execute_query only allows SELECT.
   await mcpClient.callTool({
-    name: 'execute_query',
+    name: 'execute_dml_ddl_dcl_tcl',
     arguments: { sql: 'BEGIN' },
   });
 
   let rawText: string;
   try {
     const mcpResult = await mcpClient.callTool({
-      name: 'execute_query',
+      name: 'execute_dml_ddl_dcl_tcl',
       arguments: { sql },
     });
 
@@ -113,12 +115,36 @@ export async function tableAgent(
       .filter((b) => b?.type === 'text' && typeof b.text === 'string')
       .map((b) => b.text!)
       .join('\n');
+
+    // MCP tools return errors in-band (isError flag or error text) rather than
+    // throwing.  If the SQL failed the PG transaction is now in an aborted
+    // state — we must ROLLBACK immediately or every subsequent command on this
+    // connection will fail with "current transaction is aborted".
+    const looksLikeError =
+      mcpResult.isError ||
+      /\berror\b/i.test(rawText) ||
+      /\bfailed\b/i.test(rawText);
+    if (looksLikeError) {
+      await mcpClient.callTool({
+        name: 'execute_dml_ddl_dcl_tcl',
+        arguments: { sql: 'ROLLBACK' },
+      });
+      throw new Error(`SQL execution failed: ${rawText}`);
+    }
   } catch (err) {
-    // If execution fails, roll back immediately and rethrow
-    await mcpClient.callTool({
-      name: 'execute_query',
-      arguments: { sql: 'ROLLBACK' },
-    });
+    // If execution fails (thrown by us above, or by the MCP call itself),
+    // ensure rollback and rethrow
+    // Guard: only rollback if we haven't already (i.e. the catch is from callTool itself)
+    if (
+      !(err instanceof Error && err.message.startsWith('SQL execution failed:'))
+    ) {
+      await mcpClient
+        .callTool({
+          name: 'execute_dml_ddl_dcl_tcl',
+          arguments: { sql: 'ROLLBACK' },
+        })
+        .catch(() => {}); // best-effort rollback
+    }
     throw err;
   }
 
@@ -154,7 +180,7 @@ export async function tableAgent(
   const text = block?.text;
   if (!text) {
     await mcpClient.callTool({
-      name: 'execute_query',
+      name: 'execute_dml_ddl_dcl_tcl',
       arguments: { sql: 'ROLLBACK' },
     });
     throw new Error('executePreview: empty response from model');
@@ -172,7 +198,7 @@ export async function tableAgent(
 export async function approvePreview(connectionString: string): Promise<void> {
   const { mcpClient } = await getMCPClient(connectionString);
   await mcpClient.callTool({
-    name: 'execute_query',
+    name: 'execute_dml_ddl_dcl_tcl',
     arguments: { sql: 'COMMIT' },
   });
 }
@@ -184,7 +210,7 @@ export async function approvePreview(connectionString: string): Promise<void> {
 export async function rejectPreview(connectionString: string): Promise<void> {
   const { mcpClient } = await getMCPClient(connectionString);
   await mcpClient.callTool({
-    name: 'execute_query',
+    name: 'execute_dml_ddl_dcl_tcl',
     arguments: { sql: 'ROLLBACK' },
   });
 }

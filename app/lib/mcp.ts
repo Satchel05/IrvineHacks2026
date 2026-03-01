@@ -14,12 +14,31 @@ interface MCPTextBlock {
   text?: string;
 }
 
-const schemaCache = new Map<string, { tables: string[]; details: string }>();
+/**
+ * Store caches on globalThis so they survive Next.js hot-module reloading (HMR).
+ * Without this, every HMR cycle recreates the Maps, orphaning MCP child
+ * processes (and their open PG transactions), so COMMIT/ROLLBACK from a later
+ * request hits a brand-new connection that has no open transaction.
+ */
+const globalForMcp = globalThis as typeof globalThis & {
+  __mcpCache?: Map<string, CacheEntry>;
+  __mcpSchemaCache?: Map<string, { tables: string[]; details: string }>;
+  __mcpKnownTables?: Map<string, Set<string>>;
+};
 
-const cache = new Map<string, CacheEntry>();
-const knownTablesByConnection = new Map<string, Set<string>>();
+const cache = (globalForMcp.__mcpCache ??= new Map<string, CacheEntry>());
+const schemaCache = (globalForMcp.__mcpSchemaCache ??= new Map<
+  string,
+  { tables: string[]; details: string }
+>());
+const knownTablesByConnection = (globalForMcp.__mcpKnownTables ??= new Map<
+  string,
+  Set<string>
+>());
 
-export async function getMCPClient(connectionString: string): Promise<CacheEntry> {
+export async function getMCPClient(
+  connectionString: string,
+): Promise<CacheEntry> {
   const cached = cache.get(connectionString);
   if (cached) return cached;
 
@@ -34,20 +53,20 @@ export async function getMCPClient(connectionString: string): Promise<CacheEntry
     },
   });
   // Create and connect the MCP client
-    const mcpClient = new Client({ name: 'nl-to-sql', version: '1.0.0' });
-    await mcpClient.connect(transport);
-  
-    // Fetch available tools from the MCP server and convert to Anthropic format
-    const { tools: rawTools } = await mcpClient.listTools();
-    const tools: Tool[] = rawTools.map((t) => ({
-      name: t.name,
-      description: t.description ?? '',
-      input_schema: t.inputSchema as Tool['input_schema'],
-    }));
-  
-    const entry: CacheEntry = { mcpClient, tools };
-    cache.set(connectionString, entry);
-    return entry;
+  const mcpClient = new Client({ name: 'nl-to-sql', version: '1.0.0' });
+  await mcpClient.connect(transport);
+
+  // Fetch available tools from the MCP server and convert to Anthropic format
+  const { tools: rawTools } = await mcpClient.listTools();
+  const tools: Tool[] = rawTools.map((t) => ({
+    name: t.name,
+    description: t.description ?? '',
+    input_schema: t.inputSchema as Tool['input_schema'],
+  }));
+
+  const entry: CacheEntry = { mcpClient, tools };
+  cache.set(connectionString, entry);
+  return entry;
 }
 
 export async function initializeSchema(connectionString: string) {

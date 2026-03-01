@@ -31,6 +31,13 @@ function parseRows(result: string): Record<string, unknown>[] | null {
   }
 }
 
+/** Render a cell value as a string. Handles objects/arrays (e.g. JSONB) gracefully. */
+function formatCell(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
 interface ResultTableProps {
   result: string;
 }
@@ -111,12 +118,12 @@ export function ResultTable({ result }: ResultTableProps) {
                   <td
                     key={col}
                     className="px-3 py-2 text-sm font-mono whitespace-nowrap max-w-[300px] truncate"
-                    title={row[col] == null ? "NULL" : String(row[col])}
+                    title={row[col] == null ? "NULL" : formatCell(row[col])}
                   >
                     {row[col] == null ? (
                       <span className="text-muted-foreground italic">NULL</span>
                     ) : (
-                      String(row[col])
+                      formatCell(row[col])
                     )}
                   </td>
                 ))}
