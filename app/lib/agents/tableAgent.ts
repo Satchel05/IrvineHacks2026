@@ -1,8 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getMCPClient } from '@/app/lib/mcp';
-import type { TableAgentResult, MCPTextBlock } from '@/app/lib/utils/types';
+import type { MCPTextBlock } from '@/app/lib/utils/types';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// ─── Shared SQL Requirements ──────────────────────────────────────────────────
 
 const TABLE_REQUIREMENTS = `
 Data returned from a SQL query or affected by a SQL statement.
@@ -23,78 +25,86 @@ For UPDATE/DELETE: the rows that were affected.
 CRITICAL: Never leave result empty — always use the raw database result exactly as returned.
 `;
 
-// Step 3 in pipeline: execute SQL via MCP, then format result with LLM
+// ─── Preview Transaction ────────────────────────────────────────────────────
+
+export interface PreviewResult {
+  result: string;      // LLM-formatted preview of affected rows
+  sql: string;
+  connectionString: string;
+}
+
+/**
+ * Execute a write SQL statement inside a transaction without committing.
+ * The real rows are affected and readable, but nothing is persisted until
+ * `approvePreview` is called. Call `rejectPreview` to roll back.
+ *
+ * Pass `connectionString` to approve/reject.
+ */
 export async function tableAgent(
   sql: string,
   connectionString: string,
-  userApproval = false,
   schema: string,
-): Promise<TableAgentResult> {
+): Promise<PreviewResult> {
   const isSelect = /^\s*SELECT\b/i.test(sql.trim());
-  const needsApproval = !isSelect && !userApproval;
+  const { mcpClient } = await getMCPClient(connectionString);
 
-  // ── Branch A: write op without approval — preview only, no DB execution ──
-  if (needsApproval) {
+  // SELECTs don't need transaction wrapping — execute directly and return
+  if (isSelect) {
+    const mcpResult = await mcpClient.callTool({
+      name: 'execute_query',
+      arguments: { query: sql },
+    });
+    const rawText = (mcpResult.content as MCPTextBlock[])
+      .filter((b) => b?.type === 'text' && typeof b.text === 'string')
+      .map((b) => b.text!)
+      .join('\n');
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-      system: `You are a SQL change previewer. The user has NOT yet approved this write operation. Based solely on the SQL statement, describe what rows WOULD be inserted, updated, or deleted if this were executed. Do NOT execute anything — only predict the impact.\n\n${TABLE_REQUIREMENTS}`,
-      messages: [
-        {
-          role: 'user',
-          content: `Preview the impact of this SQL (not yet approved):\n${sql}\n\nSchema:\n${schema}`,
-        },
-      ],
+      system: `You are a SQL result formatter. Return the rows as a clean JSON-stringified value.\n\n${TABLE_REQUIREMENTS}`,
+      messages: [{ role: 'user', content: `SQL executed:\n${sql}\n\nRaw result:\n${rawText}\n\nSchema:\n${schema}` }],
       output_config: {
         format: {
           type: 'json_schema',
-          schema: {
-            type: 'object',
-            properties: {
-              result: {
-                type: 'string',
-                description: TABLE_REQUIREMENTS,
-              },
-            },
-            required: ['result'],
-            additionalProperties: false,
-          },
+          schema: { type: 'object', properties: { result: { type: 'string', description: TABLE_REQUIREMENTS } }, required: ['result'], additionalProperties: false },
         },
       },
     });
-
     const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
-    const text = block?.text;
-    if (!text) throw new Error('tableAgent: empty response from model');
-
-    try {
-      const parsed = JSON.parse(text) as { result: string };
-      return { result: parsed.result, requiresApproval: true };
-    } catch {
-      throw new Error(`tableAgent: failed to parse preview response — ${text}`);
-    }
+    if (!block?.text) throw new Error('tableAgent: empty response from model');
+    const parsed = JSON.parse(block.text) as { result: string };
+    return { result: parsed.result, sql, connectionString };
   }
 
-  // ── Branch B: SELECT or approved write — execute via MCP then format ──
-  const { mcpClient } = await getMCPClient(connectionString);
-  const mcpResult = await mcpClient.callTool({
-    name: 'execute_query',
-    arguments: { sql },
-  });
+  // Write ops: open a transaction — caller must invoke approvePreview or rejectPreview
+  await mcpClient.callTool({ name: 'execute_query', arguments: { query: 'BEGIN' } });
 
-  const rawText = (mcpResult.content as MCPTextBlock[])
-    .filter((b) => b?.type === 'text' && typeof b.text === 'string')
-    .map((b) => b.text!)
-    .join('\n');
+  let rawText: string;
+  try {
+    const mcpResult = await mcpClient.callTool({
+      name: 'execute_query',
+      arguments: { query: sql },
+    });
 
+    rawText = (mcpResult.content as MCPTextBlock[])
+      .filter((b) => b?.type === 'text' && typeof b.text === 'string')
+      .map((b) => b.text!)
+      .join('\n');
+  } catch (err) {
+    // If execution fails, roll back immediately and rethrow
+    await mcpClient.callTool({ name: 'execute_query', arguments: { query: 'ROLLBACK' } });
+    throw err;
+  }
+
+  // Format the live (uncommitted) result with the LLM
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
-    system: `You are a SQL result formatter. Given a raw database result, return the rows or affected records as a clean JSON-stringified value.\n\n${TABLE_REQUIREMENTS}`,
+    system: `You are a SQL result formatter. Given a raw database result from an UNCOMMITTED transaction, return the rows or affected records as a clean JSON-stringified value. Make clear this is a preview — not yet committed.\n\n${TABLE_REQUIREMENTS}`,
     messages: [
       {
         role: 'user',
-        content: `SQL executed:\n${sql}\n\nRaw database result:\n${rawText}\n\nSchema:\n${schema}`,
+        content: `SQL executed (inside open transaction, NOT yet committed):\n${sql}\n\nRaw database result:\n${rawText}\n\nSchema:\n${schema}`,
       },
     ],
     output_config: {
@@ -103,10 +113,7 @@ export async function tableAgent(
         schema: {
           type: 'object',
           properties: {
-            result: {
-              type: 'string',
-              description: TABLE_REQUIREMENTS,
-            },
+            result: { type: 'string', description: TABLE_REQUIREMENTS },
           },
           required: ['result'],
           additionalProperties: false,
@@ -117,12 +124,31 @@ export async function tableAgent(
 
   const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
   const text = block?.text;
-  if (!text) throw new Error('tableAgent: empty response from model');
-
-  try {
-    const parsed = JSON.parse(text) as { result: string };
-    return { result: parsed.result, requiresApproval: false };
-  } catch {
-    throw new Error(`tableAgent: failed to parse response — ${text}`);
+  if (!text) {
+    await mcpClient.callTool({ name: 'execute_query', arguments: { query: 'ROLLBACK' } });
+    throw new Error('executePreview: empty response from model');
   }
+
+  const parsed = JSON.parse(text) as { result: string };
+
+  return { result: parsed.result, sql, connectionString };
 }
+
+/**
+ * Commit the open transaction for this connection.
+ * Call this when the user approves the preview.
+ */
+export async function approvePreview(connectionString: string): Promise<void> {
+  const { mcpClient } = await getMCPClient(connectionString);
+  await mcpClient.callTool({ name: 'execute_query', arguments: { query: 'COMMIT' } });
+}
+
+/**
+ * Roll back the open transaction for this connection.
+ * Call this when the user rejects the preview.
+ */
+export async function rejectPreview(connectionString: string): Promise<void> {
+  const { mcpClient } = await getMCPClient(connectionString);
+  await mcpClient.callTool({ name: 'execute_query', arguments: { query: 'ROLLBACK' } });
+}
+

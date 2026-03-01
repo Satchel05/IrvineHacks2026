@@ -41,16 +41,6 @@ export interface SqlAgentResult {
   sql: string | null;
 }
 
-/** Return type of tableAgent — JSON-stringified representation of affected/returned rows. */
-export interface TableAgentResult {
-  /** JSON-stringified rows returned (SELECT) or affected/previewed (write ops). */
-  result: string;
-  /**
-   * True when the SQL was a write operation and no approval was given.
-   * The caller should present the result as a preview and re-call with userApproval=true.
-   */
-  requiresApproval: boolean;
-}
 
 // ─── Table / Query Results ────────────────────────────────────────────────────
 
