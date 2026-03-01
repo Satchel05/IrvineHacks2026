@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { extractSqlFromContentBlocks } from '@/app/lib/utils/extractSqlFromContentBlocks';
-import { ChatMessage } from '../ai';
+import type { ChatMessage } from '@/app/lib/utils/types';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 

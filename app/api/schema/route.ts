@@ -14,7 +14,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { initializeSchema } from '@/app/lib/ai';
+import { initializeSchema } from '@/app/lib/mcp';
 
 export async function POST(req: NextRequest) {
   const { connectionString } = await req.json();

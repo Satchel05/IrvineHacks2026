@@ -3,7 +3,7 @@ import { sqlAgent } from './agents/sqlAgent';
 import { riskAgent } from './agents/riskAgent';
 import { tableAgent } from './agents/tableAgent';
 import { explainAgent } from './agents/explainAgent';
-import type { ChatMessage } from './ai';
+import type { ChatMessage } from './utils/types';
 
 export async function pipeline(
   question: string,

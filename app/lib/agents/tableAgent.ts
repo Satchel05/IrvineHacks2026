@@ -58,7 +58,7 @@ export async function tableAgent(
   if (isSelect) {
     const mcpResult = await mcpClient.callTool({
       name: 'execute_query',
-      arguments: { query: sql },
+      arguments: { sql },
     });
     const rawTextForSelect = (mcpResult.content as MCPTextBlock[])
       .filter((b) => b?.type === 'text' && typeof b.text === 'string')
@@ -99,14 +99,14 @@ export async function tableAgent(
   // Write ops: open a transaction — caller must invoke approvePreview or rejectPreview
   await mcpClient.callTool({
     name: 'execute_query',
-    arguments: { query: 'BEGIN' },
+    arguments: { sql: 'BEGIN' },
   });
 
   let rawText: string;
   try {
     const mcpResult = await mcpClient.callTool({
       name: 'execute_query',
-      arguments: { query: sql },
+      arguments: { sql },
     });
 
     rawText = (mcpResult.content as MCPTextBlock[])
@@ -117,7 +117,7 @@ export async function tableAgent(
     // If execution fails, roll back immediately and rethrow
     await mcpClient.callTool({
       name: 'execute_query',
-      arguments: { query: 'ROLLBACK' },
+      arguments: { sql: 'ROLLBACK' },
     });
     throw err;
   }
@@ -155,7 +155,7 @@ export async function tableAgent(
   if (!text) {
     await mcpClient.callTool({
       name: 'execute_query',
-      arguments: { query: 'ROLLBACK' },
+      arguments: { sql: 'ROLLBACK' },
     });
     throw new Error('executePreview: empty response from model');
   }
@@ -173,7 +173,7 @@ export async function approvePreview(connectionString: string): Promise<void> {
   const { mcpClient } = await getMCPClient(connectionString);
   await mcpClient.callTool({
     name: 'execute_query',
-    arguments: { query: 'COMMIT' },
+    arguments: { sql: 'COMMIT' },
   });
 }
 
@@ -185,6 +185,6 @@ export async function rejectPreview(connectionString: string): Promise<void> {
   const { mcpClient } = await getMCPClient(connectionString);
   await mcpClient.callTool({
     name: 'execute_query',
-    arguments: { query: 'ROLLBACK' },
+    arguments: { sql: 'ROLLBACK' },
   });
 }

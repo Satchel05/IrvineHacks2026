@@ -60,15 +60,20 @@ export async function explainAgent(
     });
     const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
     if (!block?.text) throw new Error('explainAgent: empty response from model');
-    return block.text;
+    return (JSON.parse(block.text) as { explanation: string }).explanation;
   }
 
   // SQL provided + connection available — get real query plan from Postgres via MCP
   if (connectionString) {
+    const isSelect = /^\s*SELECT\b/i.test(tentativeSql.trim());
+    // Use EXPLAIN ANALYZE only for SELECT — DML with ANALYZE executes and auto-commits
+    const explainSql = isSelect
+      ? `EXPLAIN ANALYZE ${tentativeSql}`
+      : `EXPLAIN ${tentativeSql}`;
     const { mcpClient } = await getMCPClient(connectionString);
     const mcpResult = await mcpClient.callTool({
       name: 'execute_query',
-      arguments: { query: `EXPLAIN ANALYZE ${tentativeSql}` },
+      arguments: { sql: explainSql },
     });
 
     const rawPlan = (mcpResult.content as MCPTextBlock[])
@@ -91,7 +96,7 @@ export async function explainAgent(
     });
     const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
     if (!block?.text) throw new Error('explainAgent: empty response from model');
-    return block.text;
+    return (JSON.parse(block.text) as { explanation: string }).explanation;
   }
 
   // SQL provided but no connection — fall back to Claude's static analysis
@@ -107,5 +112,5 @@ export async function explainAgent(
   });
   const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
   if (!block?.text) throw new Error('explainAgent: empty response from model');
-  return block.text;
+  return (JSON.parse(block.text) as { explanation: string }).explanation;
 }
