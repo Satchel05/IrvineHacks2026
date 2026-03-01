@@ -174,9 +174,9 @@ function StatusBar({
         <span className="text-muted-foreground">•</span>
         <span className="font-medium truncate max-w-50">{title}</span>
       </div>
-      <Button variant="ghost" size="sm" onClick={onDisconnect}>
+      {/* <Button variant="ghost" size="sm" onClick={onDisconnect}>
         Disconnect
-      </Button>
+      </Button> */}
     </div>
   );
 }
