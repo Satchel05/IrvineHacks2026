@@ -22,7 +22,7 @@ interface LoadingAnimationProps {
 /** Gray database icon: cylindrical with 3 stacked disk layers */
 function DatabaseIcon({
   size,
-  color = "#94A3B8",
+  color = "#6366F1",
 }: {
   size: number;
   color?: string;
@@ -49,7 +49,7 @@ function DatabaseIcon({
 }
 
 /** Spinner: ring with angular gradient (transparent → color), rotating, with dot on edge */
-function SpinnerRing({ size, color = "#9333EA" }: { size: number; color?: string }) {
+function SpinnerRing({ size, color = "#7a7ceb" }: { size: number; color?: string }) {
   const dotSize = Math.max(4, size * 0.2);
   const ringThickness = Math.max(3, size * 0.1);
 
@@ -82,7 +82,7 @@ const DEFAULTS = {
   spinnerSize: 40,
   gap: 16,
   iconColor: "#94A3B8",
-  spinnerColor: "#9333EA",
+  spinnerColor: "#7a7ceb",
 };
 
 export function LoadingAnimation({
