@@ -47,6 +47,11 @@ export function AssistantMessage({
   onDecisionPersist,
 }: AssistantMessageProps) {
   const structured = extractStructured(content);
+  const sqlString = typeof structured?.sql === "string" ? structured.sql : "";
+  const hasSql =
+    sqlString.trim().length > 0 &&
+    sqlString.trim() !== "{}" &&
+    sqlString.trim() !== "null";
 
   // Local decision — replaced by persisted value on re-mount
   const [localDecision, setLocalDecision] = useState<
@@ -62,10 +67,10 @@ export function AssistantMessage({
 
   // Notify parent whenever pending state changes
   useEffect(() => {
-    if (!structured?.confirmation_required) return;
+    if (!hasSql || !structured?.confirmation_required) return;
     onPendingChangeRef.current?.(decision === null);
     return () => onPendingChangeRef.current?.(false);
-  }, [decision, structured?.confirmation_required]);
+  }, [decision, hasSql, structured?.confirmation_required]);
 
   // ── Non-JSON fallback (tool status lines, errors, etc.) ────────────────
   if (!structured) {
@@ -94,12 +99,6 @@ export function AssistantMessage({
   const riskCfg = getRiskConfig(risk);
   const prefixLines = extractPrefixLines(content, structured);
 
-  const sqlString = typeof sql === "string" ? sql : "";
-  const hasSql =
-    sqlString.trim().length > 0 &&
-    sqlString.trim() !== "{}" &&
-    sqlString.trim() !== "null";
-
   const cleanedConfirmation = confirmation
     ? cleanConfirmation(String(confirmation))
     : "";
@@ -114,7 +113,7 @@ export function AssistantMessage({
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="text-sm rounded-lg border overflow-hidden w-full max-w-full">
-      <RiskHeader riskCfg={riskCfg} />
+      {hasSql && <RiskHeader riskCfg={riskCfg} />}
 
       <div className="p-4 space-y-4 bg-background">
         {/* Animated tool execution badge — only visible while streaming */}
@@ -144,7 +143,7 @@ export function AssistantMessage({
           <AffectedRecords result={result} sql={sqlString} riskCfg={riskCfg} />
         )}
 
-        {cleanedConfirmation && (
+        {hasSql && cleanedConfirmation && (
           <NotesSection
             text={cleanedConfirmation}
             notesBg={riskCfg.notesBg}
@@ -155,7 +154,7 @@ export function AssistantMessage({
         )}
 
         <ActionButtons
-          confirmationRequired={confirmation_required}
+          confirmationRequired={hasSql ? confirmation_required : false}
           decision={decision}
           onConfirm={handleConfirm}
           onExplain={onExplain}
