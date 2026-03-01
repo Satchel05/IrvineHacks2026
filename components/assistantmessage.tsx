@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { getRiskConfig } from './risk';
+import { useState, useEffect, useRef } from "react";
+import { getRiskConfig } from "./risk";
 import {
   extractStructured,
   cleanConfirmation,
   extractPrefixLines,
-} from './structured';
-import { RiskHeader } from './RiskHeader';
-import { CollapsibleSqlBlock } from './CollapsibleSqlBlock';
-import { ResultTable, AffectedRecords } from './ResultTable';
-import { NotesSection, ActionButtons } from './QueryActions';
-import MarkdownQueryBlock from './MarkdownQueryBlock';
-import { ToolStatusBadge } from './ToolStatusBadge';
+} from "./structured";
+import { RiskHeader } from "./RiskHeader";
+import { CollapsibleSqlBlock } from "./collapsiblesqlblock";
+import { ResultTable, AffectedRecords } from "./ResultTable";
+import { NotesSection, ActionButtons } from "./QueryActions";
+import MarkdownQueryBlock from "./MarkdownQueryBlock";
+import { ToolStatusBadge } from "./ToolStatusBadge";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ export interface AssistantMessageProps {
   /** Notifies the parent whether this message has a pending confirmation. */
   onConfirmationStateChange?: (pending: boolean) => void;
   /** Persists the accept/reject decision into the message store. */
-  onDecisionPersist?: (decision: 'accepted' | 'rejected') => void;
+  onDecisionPersist?: (decision: "accepted" | "rejected") => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ export function AssistantMessage({
 
   // Local decision — replaced by persisted value on re-mount
   const [localDecision, setLocalDecision] = useState<
-    'accepted' | 'rejected' | null
+    "accepted" | "rejected" | null
   >(null);
   const decision = structured?.confirmation_decision ?? localDecision;
 
@@ -68,10 +68,10 @@ export function AssistantMessage({
   // ── Non-JSON fallback (tool status lines, errors, etc.) ────────────────
   if (!structured) {
     return (
-      <div className='space-y-2'>
+      <div className="space-y-2">
         <ToolStatusBadge toolName={activeToolName} />
         {content.trim() && (
-          <pre className='whitespace-pre-wrap break-words text-sm font-sans'>
+          <pre className="whitespace-pre-wrap break-words text-sm font-sans">
             {content}
           </pre>
         )}
@@ -92,17 +92,18 @@ export function AssistantMessage({
   const riskCfg = getRiskConfig(risk);
   const prefixLines = extractPrefixLines(content, structured);
 
-  const sqlString = typeof sql === 'string' ? sql : '';
+  const sqlString = typeof sql === "string" ? sql : "";
   const hasSql =
     sqlString.trim().length > 0 &&
-    sqlString.trim() !== '{}' &&
-    sqlString.trim() !== 'null';
+    sqlString.trim() !== "{}" &&
+    sqlString.trim() !== "null";
 
-  const cleanedConfirmation =
-    confirmation ? cleanConfirmation(String(confirmation)) : '';
+  const cleanedConfirmation = confirmation
+    ? cleanConfirmation(String(confirmation))
+    : "";
 
   const handleConfirm = (accepted: boolean) => {
-    const d = accepted ? 'accepted' : 'rejected';
+    const d = accepted ? "accepted" : "rejected";
     setLocalDecision(d);
     onDecisionPersist?.(d);
     onConfirm?.(accepted);
@@ -110,19 +111,16 @@ export function AssistantMessage({
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className='text-sm rounded-lg border overflow-hidden w-full max-w-full'>
+    <div className="text-sm rounded-lg border overflow-hidden w-full max-w-full">
       <RiskHeader riskCfg={riskCfg} />
 
-      <div className='p-4 space-y-4 bg-background'>
-
+      <div className="p-4 space-y-4 bg-background">
         {/* Animated tool execution badge — only visible while streaming */}
         <ToolStatusBadge toolName={activeToolName} />
 
         {/* Tool-call status lines, e.g. "Executing tool: query..." */}
         {prefixLines.map((line, i) => (
-          <p
-            key={i}
-            className='text-muted-foreground text-xs'>
+          <p key={i} className="text-muted-foreground text-xs">
             {line}
           </p>
         ))}
@@ -130,8 +128,8 @@ export function AssistantMessage({
         {hasSql && <CollapsibleSqlBlock sql={sqlString.trim()} />}
 
         {explanation && (
-          <div className='space-y-1'>
-            <p className='text-xs font-semibold text-muted-foreground uppercase tracking-wider'>
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               What this query will do:
             </p>
             <MarkdownQueryBlock>{explanation}</MarkdownQueryBlock>
