@@ -21,7 +21,7 @@ export async function sqlAgent(
     messages: [
       {
         role: 'user',
-        content: `Answer the users question: ${question} based on the database ${schema}`,
+        content: `Answer the users question: ${question} based on the database ${schema} and take into account previous messages: ${messages}`,
       },
     ],
     output_config: {
