@@ -28,9 +28,8 @@ CRITICAL: Never leave result empty — always use the raw database result exactl
 // ─── Preview Transaction ────────────────────────────────────────────────────
 
 export interface PreviewResult {
-  result: string;      // LLM-formatted preview of affected rows
+  result: string; // LLM-formatted preview of affected rows
   sql: string;
-  connectionString: string;
 }
 
 /**
@@ -45,6 +44,13 @@ export async function tableAgent(
   connectionString: string,
   schema: string,
 ): Promise<PreviewResult> {
+  /**
+   * Determines whether the provided SQL string is a SELECT query.
+   * Uses a case-insensitive regular expression to check if the trimmed SQL
+   * statement begins with the SELECT keyword, ignoring leading whitespace.
+   * @param sql - The SQL query string to test
+   * @returns true if the SQL statement is a SELECT query, false otherwise
+   */
   const isSelect = /^\s*SELECT\b/i.test(sql.trim());
   const { mcpClient } = await getMCPClient(connectionString);
 
@@ -54,7 +60,7 @@ export async function tableAgent(
       name: 'execute_query',
       arguments: { query: sql },
     });
-    const rawText = (mcpResult.content as MCPTextBlock[])
+    const rawTextForSelect = (mcpResult.content as MCPTextBlock[])
       .filter((b) => b?.type === 'text' && typeof b.text === 'string')
       .map((b) => b.text!)
       .join('\n');
@@ -62,22 +68,39 @@ export async function tableAgent(
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: `You are a SQL result formatter. Return the rows as a clean JSON-stringified value.\n\n${TABLE_REQUIREMENTS}`,
-      messages: [{ role: 'user', content: `SQL executed:\n${sql}\n\nRaw result:\n${rawText}\n\nSchema:\n${schema}` }],
+      messages: [
+        {
+          role: 'user',
+          content: `SQL executed:\n${sql}\n\nRaw result:\n${rawTextForSelect}\n\nSchema:\n${schema}`,
+        },
+      ],
       output_config: {
         format: {
           type: 'json_schema',
-          schema: { type: 'object', properties: { result: { type: 'string', description: TABLE_REQUIREMENTS } }, required: ['result'], additionalProperties: false },
+          schema: {
+            type: 'object',
+            properties: {
+              result: { type: 'string', description: TABLE_REQUIREMENTS },
+            },
+            required: ['result'],
+            additionalProperties: false,
+          },
         },
       },
     });
-    const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
+    const block = response.content.find(
+      (b): b is Anthropic.TextBlock => b.type === 'text',
+    );
     if (!block?.text) throw new Error('tableAgent: empty response from model');
     const parsed = JSON.parse(block.text) as { result: string };
-    return { result: parsed.result, sql, connectionString };
+    return { result: parsed.result, sql };
   }
 
   // Write ops: open a transaction — caller must invoke approvePreview or rejectPreview
-  await mcpClient.callTool({ name: 'execute_query', arguments: { query: 'BEGIN' } });
+  await mcpClient.callTool({
+    name: 'execute_query',
+    arguments: { query: 'BEGIN' },
+  });
 
   let rawText: string;
   try {
@@ -92,7 +115,10 @@ export async function tableAgent(
       .join('\n');
   } catch (err) {
     // If execution fails, roll back immediately and rethrow
-    await mcpClient.callTool({ name: 'execute_query', arguments: { query: 'ROLLBACK' } });
+    await mcpClient.callTool({
+      name: 'execute_query',
+      arguments: { query: 'ROLLBACK' },
+    });
     throw err;
   }
 
@@ -122,16 +148,21 @@ export async function tableAgent(
     },
   });
 
-  const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
+  const block = response.content.find(
+    (b): b is Anthropic.TextBlock => b.type === 'text',
+  );
   const text = block?.text;
   if (!text) {
-    await mcpClient.callTool({ name: 'execute_query', arguments: { query: 'ROLLBACK' } });
+    await mcpClient.callTool({
+      name: 'execute_query',
+      arguments: { query: 'ROLLBACK' },
+    });
     throw new Error('executePreview: empty response from model');
   }
 
   const parsed = JSON.parse(text) as { result: string };
 
-  return { result: parsed.result, sql, connectionString };
+  return { result: parsed.result, sql };
 }
 
 /**
@@ -140,7 +171,10 @@ export async function tableAgent(
  */
 export async function approvePreview(connectionString: string): Promise<void> {
   const { mcpClient } = await getMCPClient(connectionString);
-  await mcpClient.callTool({ name: 'execute_query', arguments: { query: 'COMMIT' } });
+  await mcpClient.callTool({
+    name: 'execute_query',
+    arguments: { query: 'COMMIT' },
+  });
 }
 
 /**
@@ -149,6 +183,8 @@ export async function approvePreview(connectionString: string): Promise<void> {
  */
 export async function rejectPreview(connectionString: string): Promise<void> {
   const { mcpClient } = await getMCPClient(connectionString);
-  await mcpClient.callTool({ name: 'execute_query', arguments: { query: 'ROLLBACK' } });
+  await mcpClient.callTool({
+    name: 'execute_query',
+    arguments: { query: 'ROLLBACK' },
+  });
 }
-

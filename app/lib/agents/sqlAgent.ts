@@ -7,14 +7,14 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 export async function sqlAgent(
   question: string,
   schema: string,
+  messageHistory: { role: 'user' | 'assistant'; content: string }[] = [],
 ): Promise<string | null> {
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    // does this force
+    max_tokens: 2048,
     system: `You are a SQL expert. Given this schema:\n${schema}\nReturn ONLY a SQL query, nothing else. 
     If you cannot answer the question with sql, set sql to NULL`,
-    messages: [{ role: 'user', content: question }],
+    messages: [...messageHistory, { role: 'user', content: question }],
     output_config: {
       format: {
         type: 'json_schema',
