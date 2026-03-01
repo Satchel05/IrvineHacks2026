@@ -8,8 +8,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ChevronDown, Copy as CopyIcon } from "lucide-react";
 import FancyCodeBlock from "./FancyCodeBlock";
 
 interface CollapsibleSqlBlockProps {
@@ -37,9 +36,9 @@ export function CollapsibleSqlBlock({ sql }: CollapsibleSqlBlockProps) {
         <span>SQL</span>
         <button
           onClick={copy}
-          className="hover:text-foreground transition-colors"
+          className="hover:text-foreground transition-colors flex items-center"
         >
-          {copied ? "Copied!" : "Copy"}
+          {copied ? "Copied!" : <CopyIcon className="w-4 h-4" />}
         </button>
       </div>
       <div className="overflow-hidden [&_pre]:!whitespace-pre-wrap [&_code]:!whitespace-pre-wrap">
