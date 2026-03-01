@@ -213,7 +213,7 @@ export default function PlaygroundPage() {
           if (activeId) setConnected(activeId, false);
         }}
       />
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <Chat connectionString={url} />
       </div>
     </div>
