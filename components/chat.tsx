@@ -16,7 +16,7 @@
  *    a markdown library (e.g. react-markdown).
  */
 
-"use client";
+'use client';
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -106,8 +106,10 @@ function MessageBubble({
   const textColor = theme === "dark" ? "text-white/75" : "text-black/70";
   return (
     <div
-      className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}
-    >
+      className={cn(
+        'flex gap-3 p-4',
+        isUser ? 'flex-row-reverse' : 'flex-row',
+      )}>
       <Avatar isUser={isUser} />
       <div
         className={cn(
@@ -145,14 +147,14 @@ function MessageBubble({
 /** Shown while the LLM is processing (after user sends, before response arrives). */
 function ThinkingIndicator() {
   return (
-    <div className="flex gap-3 p-4">
+    <div className='flex gap-3 p-4'>
       <Avatar isUser={false} />
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+      <div className='flex items-center gap-2 text-muted-foreground'>
+        <span className='relative flex h-2 w-2'>
+          <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60' />
+          <span className='relative inline-flex h-2 w-2 rounded-full bg-primary' />
         </span>
-        <span className="text-sm">Thinking...</span>
+        <span className='text-sm'>Thinking...</span>
       </div>
     </div>
   );
@@ -161,11 +163,11 @@ function ThinkingIndicator() {
 /** Placeholder shown when the session has no messages yet. */
 function EmptyState() {
   return (
-    <div className="flex-1 flex items-center justify-center h-full min-h-75 text-muted-foreground">
-      <div className="text-center">
-        <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
+    <div className='flex-1 flex items-center justify-center h-full min-h-75 text-muted-foreground'>
+      <div className='text-center'>
+        <Bot className='h-12 w-12 mx-auto mb-4 opacity-50' />
         <p>Start a conversation by typing a message below.</p>
-        <p className="text-sm mt-2">
+        <p className='text-sm mt-2'>
           Ask questions about your PostgreSQL database in natural language.
         </p>
       </div>
@@ -202,7 +204,7 @@ function SchemaLoadingState() {
  *     response back, updating the assistant message in real time.
  */
 export function Chat({ connectionString }: ChatProps) {
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
   const [schemaLoading, setSchemaLoading] = useState(false);
   // const [liveToolStatus, setLiveToolStatus] = useState<string | null>(null);
   const [pendingConfirmationIds, setPendingConfirmationIds] = useState<
@@ -271,37 +273,37 @@ useEffect(() => {
     setSchemaLoading(true);
 
     try {
-      const res = await fetch("/api/schema", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/schema', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connectionString }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to fetch schema");
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch schema');
 
       // Build a friendly summary message
       const tables: string[] = data.schema?.tables ?? [];
-      const preview = tables.slice(0, 5).join(", ") || "none";
-      const more = tables.length > 5 ? ` and ${tables.length - 5} more` : "";
+      const preview = tables.slice(0, 5).join(', ') || 'none';
+      const more = tables.length > 5 ? ` and ${tables.length - 5} more` : '';
 
       addMessage(activeId, {
-        role: "assistant",
+        role: 'assistant',
         content: [
           `🎉 **Schema learned successfully!**`,
           ``,
-          `I've analyzed your database and found **${tables.length} table${tables.length !== 1 ? "s" : ""}**: ${preview}${more}.`,
+          `I've analyzed your database and found **${tables.length} table${tables.length !== 1 ? 's' : ''}**: ${preview}${more}.`,
           ``,
           `I'm ready to help you query your data! Try asking questions like:`,
           `- "Show me all records from [table_name]"`,
           `- "What columns are in [table_name]?"`,
           `- "Find the top 10 most recent entries"`,
-        ].join("\n"),
+        ].join('\n'),
       });
       schemaDone.add(key); // Mark as done — won't fetch again
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
+      const msg = err instanceof Error ? err.message : 'Unknown error';
       addMessage(activeId, {
-        role: "assistant",
+        role: 'assistant',
         content: `⚠️ **Could not load schema**: ${msg}\n\nYou can still ask questions, but I may need to discover your tables as we go.`,
       });
       schemaDone.delete(key); // Allow retry on next mount
@@ -336,7 +338,7 @@ useEffect(() => {
       if (!text.trim() || !activeId || isLoading) return;
       if (hasPendingConfirmation && !options?.ignorePendingLock) return;
 
-      addMessage(activeId, { role: "user", content: text });
+      addMessage(activeId, { role: 'user', content: text });
       setLoading(activeId, true);
 
       try {
@@ -347,45 +349,27 @@ useEffect(() => {
             content: m.content,
           })) ?? [];
 
-        const res = await fetch("/api/query", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch('/api/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ connectionString, messages: history }),
         });
 
         if (!res.ok) {
           const data = await res.json();
-          throw new Error(data.error || "Something went wrong");
+          throw new Error(data.error || 'Something went wrong');
         }
 
         const asstMsg = addMessage(activeId, {
-          role: "assistant",
-          content: "",
+          role: 'assistant',
+          content: '',
         });
-        const reader = res.body?.getReader();
-        if (!reader) throw new Error("No response body");
 
-        const decoder = new TextDecoder();
-        let accumulated = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-
-          if (chunk.startsWith("__TOOL_STATUS__:")) {
-            const toolName = chunk.replace("__TOOL_STATUS__:", "").trim();
-            const next = toolName === "DONE" ? null : toolName;
-            activeToolNameRef.current = next;
-            setActiveToolName(next); // triggers re-render so badge updates
-            continue; // ← do NOT touch accumulated
-          }
-
-          accumulated += chunk;
-          updateMessage(activeId, asstMsg.id, accumulated);
-        }
+        const data = await res.json();
+        updateMessage(activeId, asstMsg.id, JSON.stringify(data));
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Something went wrong";
-        addMessage(activeId, { role: "assistant", content: `Error: ${msg}` });
+        const msg = err instanceof Error ? err.message : 'Something went wrong';
+        addMessage(activeId, { role: 'assistant', content: `Error: ${msg}` });
       } finally {
         setActiveToolName(null);
         setLoading(activeId, false);
@@ -408,7 +392,7 @@ useEffect(() => {
     if (hasPendingConfirmation) return;
     const text = input.trim();
     if (!text) return;
-    setInput("");
+    setInput('');
     await sendMessage(text);
   };
 
@@ -430,7 +414,7 @@ useEffect(() => {
    * Handles multiple JSON objects by updating all of them.
    */
   const handleDecisionPersist = useCallback(
-    (messageId: string, decision: "accepted" | "rejected") => {
+    (messageId: string, decision: 'accepted' | 'rejected') => {
       if (!activeId) return;
       // Read fresh messages from store to avoid stale closure
       const currentSession = useChatStore.getState().sessions[activeId];
@@ -446,10 +430,10 @@ useEffect(() => {
       const segments: { start: number; end: number; json: string }[] = [];
 
       for (let i = 0; i < content.length; i++) {
-        if (content[i] === "{") {
+        if (content[i] === '{') {
           if (depth === 0) start = i;
           depth++;
-        } else if (content[i] === "}") {
+        } else if (content[i] === '}') {
           depth--;
           if (depth === 0 && start !== -1) {
             segments.push({
@@ -467,7 +451,7 @@ useEffect(() => {
         const seg = segments[i];
         try {
           const parsed = JSON.parse(seg.json);
-          if (parsed && typeof parsed === "object") {
+          if (parsed && typeof parsed === 'object') {
             parsed.confirmation_decision = decision;
             const newJson = JSON.stringify(parsed);
             content =
@@ -491,7 +475,7 @@ useEffect(() => {
   // Edge case: no active session yet (createSession effect hasn't fired)
   if (!activeId) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+      <div className='flex-1 flex items-center justify-center text-muted-foreground'>
         <p>Creating new chat...</p>
       </div>
     );
@@ -505,11 +489,10 @@ useEffect(() => {
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       {/* ── Messages area ────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        {messages.length === 0 ? (
+      <div className='flex-1 overflow-y-auto overflow-x-hidden'>
+        {messages.length === 0 ?
           <EmptyState />
-        ) : (
-          <div className="space-y-2">
+        : <div className='space-y-2'>
             {messages.map((m) => (
               <MessageBubble
                 key={m.id}
@@ -517,37 +500,80 @@ useEffect(() => {
                 isLatest={m.id === messages.at(-1)?.id}
                 // Only the last message is ever actively streaming
                 activeToolName={
-                  m.id === messages.at(-1)?.id && m.role === "assistant"
-                    ? activeToolName
-                    : null
+                  m.id === messages.at(-1)?.id && m.role === 'assistant' ?
+                    activeToolName
+                  : null
                 }
                 onConfirmationStateChange={handleConfirmationStateChange}
                 onDecisionPersist={(decision) =>
                   handleDecisionPersist(m.id, decision)
                 }
-                onConfirm={(accepted) =>
-                  sendMessage(
-                    accepted
-                      ? "Yes, confirmed. Please proceed with the operation."
-                      : "No, cancel the operation. Do not execute it.",
-                    { ignorePendingLock: true },
-                  )
-                }
+                onConfirm={async (accepted) => {
+                  try {
+                    // Extract the transactionId from this message so the
+                    // confirm endpoint can commit/rollback the pending transaction.
+                    let pendingTransactionId = '';
+                    try {
+                      const parsed = JSON.parse(m.content);
+                      pendingTransactionId = parsed?.transactionId ?? '';
+                    } catch {
+                      // Not JSON — no transactionId to extract
+                    }
+
+                    const res = await fetch('/api/confirm', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        connectionString,
+                        action: accepted ? 'approve' : 'reject',
+                        transactionId: pendingTransactionId,
+                      }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok)
+                      throw new Error(data.error || 'Confirmation failed');
+                    addMessage(activeId, {
+                      role: 'assistant',
+                      content: JSON.stringify({
+                        sql: '',
+                        explanation:
+                          accepted ?
+                            'Operation committed successfully.'
+                          : 'Operation rolled back. No changes were made.',
+                        result: '',
+                        rowCount: null,
+                        confirmation: '',
+                        confirmation_required: false,
+                        user_confirmed: accepted,
+                        risk: 0,
+                      }),
+                    });
+                  } catch (err) {
+                    const msg =
+                      err instanceof Error ?
+                        err.message
+                      : 'Confirmation failed';
+                    addMessage(activeId, {
+                      role: 'assistant',
+                      content: `Error: ${msg}`,
+                    });
+                  }
+                }}
                 onExplain={() =>
                   sendMessage(
-                    "Can you explain what this query does in more detail, including any risks or side effects?",
+                    'Can you explain what this query does in more detail, including any risks or side effects?',
                     { ignorePendingLock: true },
                   )
                 }
               />
             ))}
-            {isLoading && messages.at(-1)?.role !== "assistant" && (
+            {isLoading && messages.at(-1)?.role !== 'assistant' && (
               <ThinkingIndicator />
             )}
             {/* Invisible anchor for auto-scrolling */}
             <div ref={bottomRef} />
           </div>
-        )}
+        }
       </div>
 
       {/* ── Input area ───────────────────────────────────────────────────── */}

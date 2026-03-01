@@ -14,15 +14,21 @@
  */
 
 import { NextRequest } from 'next/server';
-import { initializeSchema } from '@/app/lib/ai';
+import { initializeSchema, clearSchemaCache } from '@/app/lib/mcp';
 
 export async function POST(req: NextRequest) {
-  const { connectionString } = await req.json();
+  const { connectionString, refresh } = await req.json();
 
   if (!connectionString)
-    return Response.json({ error: 'Connection string is required' }, { status: 400 });
+    return Response.json(
+      { error: 'Connection string is required' },
+      { status: 400 },
+    );
 
   try {
+    // Allow forcing a re-fetch of schema details
+    if (refresh) clearSchemaCache(connectionString);
+
     // Calls MCP's list_tables + describe_table_schema (see ai.ts)
     const schema = await initializeSchema(connectionString);
     return Response.json({ schema });
