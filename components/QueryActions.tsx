@@ -64,6 +64,7 @@ interface ActionButtonsProps {
   decision: "accepted" | "rejected" | null;
   onConfirm?: (accepted: boolean) => void;
   onExplain?: () => void;
+  isLatest?: boolean;
 }
 
 /**
@@ -78,10 +79,11 @@ export function ActionButtons({
   decision,
   onConfirm,
   onExplain,
+  isLatest = true,
 }: ActionButtonsProps) {
   return (
     <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
-      <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={onExplain}>
+      <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={onExplain} disabled={!isLatest}>
         <MessageSquare className="h-3 w-3" />
         Explain this
       </Button>

@@ -1,29 +1,16 @@
-/**
- * playground/layout.tsx — Sidebar layout wrapper for the playground.
- *
- * Provides:
- *  1. A collapsible sidebar (shadcn Sidebar) with navigation links and a chat session list
- *  2. A main content area where `children` (the playground page) renders
- *
- * HOW TO EDIT:
- *  - To add new navigation links, add entries to `NAV_ITEMS`.
- *  - To change how sessions appear in the sidebar, edit the `sorted.map(...)` block.
- *  - To change the rename behavior, edit `InlineRenameInput`.
- *  - To change the sidebar footer branding, edit the `<SidebarFooter>` block.
- */
-
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
+import { useSidebar } from "@/components/ui/sidebar";
 import {
   Database,
   Home,
   Settings,
   Play,
   Plus,
-  MessageSquare,
   Trash2,
   BotMessageSquare,
+  Pencil,
 } from "lucide-react";
 import {
   Sidebar,
@@ -38,18 +25,19 @@ import {
   SidebarTrigger,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useChatStore } from "@/app/store/chatStore";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { cn } from "@/lib/utils";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-/**
- * Static navigation links shown at the top of the sidebar.
- * Each item has a title, URL, and Lucide icon component.
- * Links with `url: "#"` are placeholders — wire them up when those pages exist.
- */
 const NAV_ITEMS = [
   { title: "Home", url: "/", icon: Home },
   { title: "Playground", url: "/playground", icon: Play },
@@ -57,93 +45,60 @@ const NAV_ITEMS = [
   { title: "Settings", url: "#", icon: Settings },
 ] as const;
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
+function SidebarKeybindListener() {
+  const { toggle } = useSidebar(); // now safe, inside provider
 
-/**
- * Inline text input that replaces a session title for renaming.
- * Appears when the user double-clicks a session name in the sidebar.
- *
- * Behavior:
- *  - Enter/blur → commit the rename (if non-empty, otherwise cancel)
- *  - Escape     → cancel without saving
- *  - Clicks inside the input are stopped from propagating (so they
- *    don't trigger the parent menu button's onClick).
- */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = document.activeElement?.tagName;
+      if (e.key === "Tab" && !["INPUT", "TEXTAREA", "SELECT"].includes(activeTag || "")) {
+        e.preventDefault();
+        toggle();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggle]);
+
+  return null; // this component renders nothing
+}
+
 function InlineRenameInput({
   value,
   onSave,
   onCancel,
-  onDeleteClick,
 }: {
   value: string;
   onSave: (title: string) => void;
   onCancel: () => void;
-  onDeleteClick?: () => void;
 }) {
   const [draft, setDraft] = useState(value);
-  const deletePendingRef = useRef(false);
 
-  /** Save the trimmed draft, or cancel if it's empty. */
   const commit = () => {
-    // If delete was clicked, don't commit - the delete handler will run
-    if (deletePendingRef.current) return;
     const trimmed = draft.trim();
     if (trimmed) onSave(trimmed);
     else onCancel();
   };
 
   return (
-    <>
-      <Input
-        value={draft}
-        autoFocus
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          e.stopPropagation();
-          if (e.key === "Enter") commit();
-          if (e.key === "Escape") onCancel();
-        }}
-        className="h-7 flex-1"
-      />
-      {/* Inline delete button while editing */}
-      {onDeleteClick && (
-        <div
-          role="button"
-          tabIndex={0}
-          className="h-5 w-5 flex items-center justify-center rounded-md hover:bg-accent ml-1"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            deletePendingRef.current = true;
-          }}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onDeleteClick();
-          }}
-        >
-          <Trash2 className="h-3 w-3" />
-        </div>
-      )}
-    </>
+    <Input
+      value={draft}
+      autoFocus
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") commit();
+        if (e.key === "Escape") onCancel();
+      }}
+      className="h-7 flex-1"
+    />
   );
 }
 
-/**
- * The full sidebar component.
- *
- * Sections:
- *  1. Navigation — static links from `NAV_ITEMS`
- *  2. Chats      — list of chat sessions sorted by most-recently-updated
- *     - Click a session → make it active
- *     - Double-click the title → rename inline
- *     - Trash icon → delete the session
- *     - Plus button → create a new session
- */
 function AppSidebar() {
-  // Pull store state + actions via individual selectors (avoids unnecessary re-renders)
   const sessions = useChatStore((s) => s.sessions);
   const activeId = useChatStore((s) => s.activeSessionId);
   const createSession = useChatStore((s) => s.createSession);
@@ -151,10 +106,8 @@ function AppSidebar() {
   const remove = useChatStore((s) => s.deleteSession);
   const rename = useChatStore((s) => s.renameSession);
 
-  /** Tracks which session is currently being renamed (null = none). */
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  /** Sessions sorted newest-first by `updatedAt`. */
   const sorted = Object.values(sessions).sort(
     (a, b) => b.updatedAt - a.updatedAt,
   );
@@ -162,11 +115,11 @@ function AppSidebar() {
   return (
     <Sidebar>
       <SidebarContent>
-        {/* ── Sidebar Title ────────────────────────────────────────────── */}
+        {/* ── Sidebar Title ─────────────────────────────────────────── */}
         <div className="flex items-center gap-3 px-4 pt-4 pb-2">
           <span
             style={{
-              background: "#6B74C9",
+              background: "#6366F1",
               borderRadius: "10px",
               padding: "8px",
               display: "inline-flex",
@@ -181,15 +134,14 @@ function AppSidebar() {
           </h1>
         </div>
 
-        {/* ── Chat session list ─────────────────────────────────────────── */}
+        {/* ── Chat session list ──────────────────────────────────────── */}
         <SidebarGroup>
           <SidebarGroupLabel className="flex items-center justify-between">
             <span>CONNECTIONS</span>
-            {/* Plus button: create a new blank session */}
             <Button
               variant="ghost"
               size="icon"
-              className="h-5 w-5"
+              className="h-5 w-5 cursor-pointer"
               onClick={() => createSession()}
             >
               <Plus className="h-4 w-4" />
@@ -198,100 +150,86 @@ function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {sorted.length === 0 ? (
-                <p
-                  key="empty-state"
-                  className="px-2 text-sm text-muted-foreground"
-                >
+                <p className="px-2 text-sm text-muted-foreground">
                   No chats yet
                 </p>
               ) : (
                 sorted.map((session) => (
                   <SidebarMenuItem key={session.id}>
-                    <SidebarMenuButton
-                      isActive={session.id === activeId}
-                      onClick={() => setActive(session.id)}
-                      className="group"
-                      style={{
-                        width: "327px",
-                        height: "68px",
-                        background:
-                          session.id === activeId
-                            ? "rgba(82,82,234,0.15)"
-                            : undefined,
-                        border:
-                          session.id === activeId
-                            ? "1.5px solid rgba(82,82,234,0.3)"
-                            : "1.5px solid transparent",
-                        borderRadius: "12px",
-                      }}
-                    >
-                      <Database className="h-4 w-4" />
-
-                      <div className="flex flex-col flex-1">
-                        {/* Show rename input OR static title */}
-                        {editingId === session.id ? (
-                          <InlineRenameInput
-                            value={session.title}
-                            onSave={(t) => {
-                              rename(session.id, t);
-                              setEditingId(null);
-                            }}
-                            onCancel={() => setEditingId(null)}
-                            onDeleteClick={() => {
-                              setEditingId(null);
-                              remove(session.id);
-                            }}
-                          />
-                        ) : (
-                          <>
-                            <span
-                              className="truncate font-medium text-[14px] text-sidebar-foreground/70"
-                              onDoubleClick={(e) => {
-                                e.stopPropagation();
-                                setEditingId(session.id);
-                              }}
-                              title="Double-click to rename"
-                            >
-                              {session.title}
-                            </span>
-                            <span className="text-xs text-sidebar-foreground/40 mt-1 block">
-                              {session.connectionString?.slice(0, 20) || ""}
-                              {session.connectionString &&
-                              session.connectionString.length > 20
-                                ? "..."
-                                : ""}
-                            </span>
-                          </>
-                        )}
-                      </div>
-
-                      {/* Trash icon — only visible on hover (via group-hover), hidden when editing */}
-                      {editingId !== session.id && (
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          className="h-5 w-5 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            remove(session.id);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              remove(session.id);
-                            }
-                          }}
-                          onMouseDown={(e) => {
-                            // Prevent focus change that might trigger blur handlers
-                            e.preventDefault();
+                    <ContextMenu>
+                      <ContextMenuTrigger asChild>
+                        <SidebarMenuButton
+                          isActive={session.id === activeId}
+                          onClick={() => setActive(session.id)}
+                          className="group"
+                          style={{
+                            width: "327px",
+                            height: "68px",
+                            background:
+                              session.id === activeId
+                                ? "rgba(82,82,234,0.15)"
+                                : undefined,
+                            color: 
+                            session.id === activeId ? "#6366F1" : undefined,
+                            border:
+                              session.id === activeId
+                                ? "1.5px solid rgba(82,82,234,0.3)"
+                                : "1.5px solid transparent",
+                            borderRadius: "12px",
                           }}
                         >
-                          <Trash2 className="h-3 w-3" />
-                        </div>
-                      )}
-                    </SidebarMenuButton>
+                          <Database className="h-4 w-4 shrink-0" />
+
+                          <div className="flex flex-col flex-1 min-w-0">
+                            {editingId === session.id ? (
+                              <InlineRenameInput
+                                value={session.title}
+                                onSave={(t) => {
+                                  rename(session.id, t);
+                                  setEditingId(null);
+                                }}
+                                onCancel={() => setEditingId(null)}
+                              />
+                            ) : (
+                              <>
+                                <span className={cn("truncate font-medium text-[14px] text-sidebar-foreground/70", session.id === activeId ? "text-color-indigo-500 font-bold": "")}>
+                                  {session.title}
+                                </span>
+                                <span className="text-xs text-sidebar-foreground/40 mt-1 block truncate">
+                                  {session.connectionString
+                                    ? session.connectionString.slice(0, 20) +
+                                      (session.connectionString.length > 20
+                                        ? "..."
+                                        : "")
+                                    : ""}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </SidebarMenuButton>
+                      </ContextMenuTrigger>
+
+                      <ContextMenuContent className="w-48">
+                        <ContextMenuItem
+                          className="gap-2 cursor-pointer"
+                          onClick={() => setEditingId(session.id)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Rename
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          className="gap-2 cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950"
+                          onClick={() => {
+                            setEditingId(null);
+                            remove(session.id);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                   </SidebarMenuItem>
                 ))
               )}
@@ -300,7 +238,6 @@ function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Sidebar footer — theme toggle at bottom */}
       <SidebarFooter>
         <div className="pb-2">
           <SidebarMenu>
@@ -315,25 +252,26 @@ function AppSidebar() {
   );
 }
 
-// ─── Layout ───────────────────────────────────────────────────────────────────
+export default function PlaygroundLayout({ children }: { children: React.ReactNode }) {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
-/**
- * Layout component wrapping the `/playground` route.
- * Uses shadcn's SidebarProvider for collapsible sidebar behavior.
- * The `<SidebarTrigger />` is the hamburger icon that toggles the sidebar.
- */
-export default function PlaygroundLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd (Mac) or Ctrl (Windows/Linux) + B
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault(); // prevent browser bookmark
+        setSidebarOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
-    <SidebarProvider>
+    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
       <AppSidebar />
       <main className="flex-1 min-w-0 overflow-hidden">
-        <div className="p-4">
-          <SidebarTrigger />
-        </div>
         {children}
       </main>
     </SidebarProvider>

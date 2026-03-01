@@ -31,6 +31,25 @@ import { useChatStore } from "@/app/store/chatStore";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+export function extractNeonEndpointSlug(
+  connectionString: string,
+): string | null {
+  try {
+    const { hostname } = new URL(connectionString);
+
+    if (!hostname.startsWith("ep-")) return null;
+
+    const parts = hostname.split("-");
+    // ["ep", "snowy", "shadow", "adcq04lw", "pooler.c", ...]
+
+    if (parts.length < 3) return null;
+
+    return `${parts[1]}-${parts[2]}`;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * A text input that toggles between password (masked) and text (visible).
  * Used for the Postgres connection string so credentials aren't shown by default.
@@ -155,9 +174,9 @@ function StatusBar({
         <span className="text-muted-foreground">•</span>
         <span className="font-medium truncate max-w-50">{title}</span>
       </div>
-      <Button variant="ghost" size="sm" onClick={onDisconnect}>
+      {/* <Button variant="ghost" size="sm" onClick={onDisconnect}>
         Disconnect
-      </Button>
+      </Button> */}
     </div>
   );
 }
@@ -182,6 +201,7 @@ export default function PlaygroundPage() {
   const createSession = useChatStore((s) => s.createSession);
   const setConnection = useChatStore((s) => s.setSessionConnection);
   const setConnected = useChatStore((s) => s.setSessionConnected);
+  const rename = useChatStore((s) => s.renameSession);
 
   const url = session?.connectionString ?? "";
   // Default to "connected" if there's a saved URL (recover from page reload)
@@ -193,10 +213,13 @@ export default function PlaygroundPage() {
       <ConnectionCard
         savedUrl={url}
         onConnect={(u) => {
-          const id = activeId ?? createSession();
-          setConnection(id, u); // Save the connection string to the session
-          setConnected(id, true); // Mark the session as connected
-        }}
+  const id = activeId ?? createSession();
+  setConnection(id, u);
+  setConnected(id, true);
+  // Auto-name the session from the Neon endpoint slug
+  const slug = extractNeonEndpointSlug(u);
+  if (slug) rename(id, slug);
+}}
         onReconnect={() => {
           if (activeId && url) setConnected(activeId, true);
         }}
@@ -206,16 +229,18 @@ export default function PlaygroundPage() {
 
   // ── Connected view ──────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-0.1rem)] overflow-hidden">
       <StatusBar
         title={session?.title ?? "Database"}
         onDisconnect={() => {
           if (activeId) setConnected(activeId, false);
         }}
       />
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        <Chat connectionString={url} />
-      </div>
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+  <div className="h-full flex flex-col">
+    <Chat connectionString={url} />
+  </div>
+</div>
     </div>
   );
 }

@@ -32,6 +32,7 @@ export interface AssistantMessageProps {
   onConfirmationStateChange?: (pending: boolean) => void;
   /** Persists the accept/reject decision into the message store. */
   onDecisionPersist?: (decision: "accepted" | "rejected") => void;
+  isLatest?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ export function AssistantMessage({
   onConfirm,
   onExplain,
   onConfirmationStateChange,
+  isLatest = true,
   onDecisionPersist,
 }: AssistantMessageProps) {
   const structured = extractStructured(content);
@@ -160,6 +162,7 @@ export function AssistantMessage({
           decision={decision}
           onConfirm={handleConfirm}
           onExplain={onExplain}
+          isLatest={isLatest}
         />
       </div>
     </div>
