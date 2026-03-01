@@ -84,9 +84,13 @@ function AppSidebar() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const sorted = Object.values(sessions).sort(
-    (a, b) => b.updatedAt - a.updatedAt,
-  );
+  const sorted = Object.entries(sessions)
+    .map(([storeId, session]) => ({
+      ...session,
+      id: session.id || storeId,
+      storeId,
+    }))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (
     <Sidebar>
@@ -131,7 +135,7 @@ function AppSidebar() {
                 </p>
               ) : (
                 sorted.map((session) => (
-                  <SidebarMenuItem key={session.id}>
+                  <SidebarMenuItem key={session.storeId}>
                     <ContextMenu>
                       <ContextMenuTrigger asChild>
                         <SidebarMenuButton
