@@ -127,16 +127,18 @@ export function AssistantMessage({
           </p>
         ))}
 
-        {hasSql && <CollapsibleSqlBlock sql={sqlString.trim()} />}
+        {hasSql && <CollapsibleSqlBlock riskCfg={riskCfg} sql={sqlString.trim()} />}
 
         {explanation && (
           <div className="space-y-1">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            {/* <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               What this query will do:
-            </p>
+            </p> */}
             <MarkdownQueryBlock>{explanation}</MarkdownQueryBlock>
           </div>
         )}
+
+        {result && <ResultTable result={result} />}
 
         {result && (
   <AffectedRecords
@@ -145,7 +147,7 @@ export function AssistantMessage({
     riskCfg={riskCfg}
   />
 )}
-{result && <ResultTable result={result} />}
+
 
         {cleanedConfirmation && (
           <NotesSection

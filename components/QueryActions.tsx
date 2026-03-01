@@ -42,12 +42,12 @@ export function NotesSection({
 
   return (
     <div className={cn("rounded-md border p-3 space-y-2", notesBg)}>
-      <p className={cn("text-xs font-semibold uppercase tracking-wider", notesTitleColor)}>
+      <p className={cn("text-s font-semibold uppercase tracking-wider", notesTitleColor)}>
         {notesTitle}
       </p>
       <ul className="space-y-1">
         {bullets.map((b, i) => (
-          <li key={i} className="flex gap-2 text-xs text-foreground/80">
+          <li key={i} className="flex gap-2 text-s text-foreground/80">
             <span className={cn("mt-0.5 shrink-0", bulletColor)}>•</span>
             <span>{b}</span>
           </li>

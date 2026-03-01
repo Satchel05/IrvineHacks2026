@@ -178,7 +178,7 @@ export function AffectedRecords({ result, sql, riskCfg }: AffectedRecordsProps) 
         riskCfg.notesBg,
       )}
     >
-      <p className={cn("text-sm font-semibold tracking-wide mb-1", riskCfg.notesTitleColor)}>
+      <p className={cn("text-md font-semibold tracking-wide mb-1", riskCfg.notesTitleColor)}>
         Affected Records
       </p>
       <div className="flex flex-row items-center gap-2">

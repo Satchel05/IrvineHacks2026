@@ -48,7 +48,7 @@ const RISK_CONFIG: Record<RiskLevel, Omit<RiskConfig, "level">> = {
     notesTitle: "Notes",
     notesTitleColor: "text-emerald-700 dark:text-emerald-400",
     bulletColor: "text-emerald-600 dark:text-emerald-400",
-    borderColor: "emerald-900",
+    borderColor: "border-emerald-200",
     bgColor: "bg-emerald-600/10"
   },
   1: {
@@ -65,7 +65,7 @@ const RISK_CONFIG: Record<RiskLevel, Omit<RiskConfig, "level">> = {
     notesTitle: "Important Notes",
     notesTitleColor: "text-amber-700 dark:text-amber-400",
     bulletColor: "text-amber-500",
-    borderColor: "amber-900",
+    borderColor: "border-amber-200",
     bgColor: "bg-amber-600/10"
   },
   2: {
@@ -82,7 +82,7 @@ const RISK_CONFIG: Record<RiskLevel, Omit<RiskConfig, "level">> = {
     notesTitle: "⚠ Critical Warnings ⚠",
     notesTitleColor: "text-red-700 dark:text-red-400",
     bulletColor: "text-red-500",
-    borderColor: "red-900",
+    borderColor: "border-red-200",
     bgColor: "bg-red-600/10",
   },
   3: {
@@ -99,7 +99,7 @@ const RISK_CONFIG: Record<RiskLevel, Omit<RiskConfig, "level">> = {
     notesTitle: "⚠ Critical Warnings ⚠",
     notesTitleColor: "text-red-700 dark:text-red-400",
     bulletColor: "text-red-500",
-    borderColor: "red-900",
+    borderColor: "border-red-200",
     bgColor: "bg-red-600/10"
   },
 };

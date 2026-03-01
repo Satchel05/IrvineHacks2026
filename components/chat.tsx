@@ -120,7 +120,7 @@ function MessageBubble({
         )}
       >
         {isUser ? (
-          <pre className={cn("whitespace-pre-wrap p-2 break-words text-sm font-sans", textColor)}>
+          <pre className={cn("whitespace-pre-wrap p-2 break-words text-base font-sans", textColor)}>
             {message.content}
           </pre>
         ) : (

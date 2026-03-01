@@ -30,7 +30,7 @@ export function RiskHeader({ riskCfg }: RiskHeaderProps) {
       </div>
 
       <div className="flex flex-col min-w-0">
-        <p className={cn("font-bold text-sm uppercase leading-tight tracking-wide", labelTextColor)}>
+        <p className={cn("font-bold text-[18px] leading-tight tracking-wide", labelTextColor)}>
           {riskCfg.label}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5 leading-tight">
