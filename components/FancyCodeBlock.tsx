@@ -1,5 +1,5 @@
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { okaidia } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useTheme } from "./theme-provider";
 
@@ -23,7 +23,7 @@ const CodeBlock = ({
     return (
       <div className="w-full overflow-hidden">
         <SyntaxHighlighter
-          style={theme === "dark" ? oneDark : oneLight}
+          style={theme === "dark" ? okaidia : oneLight}
           language="sql"
           PreTag="div"
           wrapLongLines={true}
