@@ -35,16 +35,22 @@ const OUTPUT_SCHEMA = {
 
 // Step 2 in pipeline: explain SQL via MCP's EXPLAIN ANALYZE, then summarize with Claude
 export async function explainAgent(
-  tentativeSql: string,
+  tentativeSql: string | null,
   chatHistory: ChatMessage[],
   connectionString?: string,
+  question: string = '',
 ): Promise<string> {
+
+  const questionPrefix: Anthropic.MessageParam[] = question
+    ? [{ role: 'user', content: `CURRENT QUESTION (answer this above all else):\n${question}` }]
+    : [];
 
   // No SQL — conversational fallback using chat history only
   if (!tentativeSql) {
-    const messages: Anthropic.MessageParam[] = chatHistory
+    const history: Anthropic.MessageParam[] = chatHistory
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    const messages: Anthropic.MessageParam[] = [...questionPrefix, ...history];
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
@@ -75,6 +81,7 @@ export async function explainAgent(
       max_tokens: 1024,
       system: SUMMARIZE_EXPLAIN_DESCRIPTION,
       messages: [
+        ...questionPrefix,
         {
           role: 'user',
           content: `SQL:\n${tentativeSql}\n\nPostgres EXPLAIN ANALYZE output:\n${rawPlan}`,
@@ -92,7 +99,10 @@ export async function explainAgent(
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
     system: SUMMARIZE_EXPLAIN_DESCRIPTION,
-    messages: [{ role: 'user', content: `Explain this SQL query:\n${tentativeSql}` }],
+    messages: [
+      ...questionPrefix,
+      { role: 'user', content: `Explain this SQL query:\n${tentativeSql}` },
+    ],
     output_config: OUTPUT_SCHEMA,
   });
   const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
