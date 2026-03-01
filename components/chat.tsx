@@ -25,6 +25,7 @@ import { useChatStore, type Message } from "@/app/store/chatStore";
 import { Send, User, Bot, Loader2, Database } from "lucide-react";
 import { AssistantMessage } from "./assistantmessage";
 import { cn } from "@/lib/utils";
+import { useTheme } from "./theme-provider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,6 +84,9 @@ function MessageBubble({
   onDecisionPersist?: (decision: "accepted" | "rejected") => void;
 }) {
   const isUser = message.role === "user";
+  const { theme } = useTheme()
+  const msgBubbleColor = theme === "dark" ? "bg-black" : "bg-muted/50";
+  const textColor = theme === "dark" ? "color-white" : "color-black"
   return (
     <div
       className={cn("flex gap-3 p-4", isUser ? "flex-row-reverse" : "flex-row")}
@@ -94,7 +98,7 @@ function MessageBubble({
           // User bubbles keep their colored pill; assistant messages are now
           // their own self-contained cards — no extra bg wrapper needed.
           isUser
-            ? "rounded-lg px-4 py-2 bg-primary text-primary-foreground ml-auto"
+            ? cn("rounded-lg px-4 py-2 ml-auto p-10px", msgBubbleColor, textColor)
             : "",
         )}
       >

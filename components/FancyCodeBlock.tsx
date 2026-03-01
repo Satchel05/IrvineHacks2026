@@ -1,6 +1,7 @@
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { useTheme } from "./theme-provider";
 
 interface CodeBlockProps {
   node?: any;
@@ -17,11 +18,12 @@ const CodeBlock = ({
   children,
   ...props
 }: CodeBlockProps) => {
+      const { theme } = useTheme()
   if (!inline) {
     return (
       <div className="w-full overflow-hidden">
         <SyntaxHighlighter
-          style={oneLight}
+          style={theme === "dark" ? oneDark : oneLight}
           language="sql"
           PreTag="div"
           wrapLongLines={true}
@@ -31,6 +33,7 @@ const CodeBlock = ({
             wordBreak: "break-all",
             whiteSpace: "pre-wrap",
             overflowWrap: "anywhere",
+            backgroundColor: theme === "dark" ? "#000" : "#f8f8f8"
           }}
           codeTagProps={{
             style: {
