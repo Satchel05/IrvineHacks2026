@@ -467,7 +467,7 @@ export async function* queryDatabaseStream(
       }
 
       // Otherwise, execute the tool normally
-      yield `\n\n🔧 *Executing tool: ${block.name}...*\n\n`;
+      yield `__TOOL_STATUS__:${block.name}\n`
       const result = await mcpClient.callTool({
         name: block.name,
         arguments: block.input as Record<string, unknown>,

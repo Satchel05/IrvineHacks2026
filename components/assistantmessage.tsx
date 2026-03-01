@@ -1,20 +1,3 @@
-/**
- * AssistantMessage.tsx — Orchestrator for structured LLM response cards.
- *
- * This file is intentionally thin. It:
- *   1. Parses the raw `content` string into a `StructuredResponse`
- *   2. Manages the accept/reject decision state
- *   3. Composes the sub-components into the final card layout
- *
- * Sub-components live in their own files:
- *   - risk.ts                → Risk level config + getRiskConfig()
- *   - structured.ts          → StructuredResponse type + extractStructured()
- *   - RiskHeader.tsx         → Colored header bar with icon + badge
- *   - CollapsibleSqlBlock.tsx → Dark SQL block with expand toggle
- *   - ResultTable.tsx        → Sortable data table + AffectedRecords count
- *   - QueryActions.tsx       → NotesSection bullets + ActionButtons bar
- */
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -25,15 +8,22 @@ import {
   extractPrefixLines,
 } from './structured';
 import { RiskHeader } from './RiskHeader';
-import { CollapsibleSqlBlock } from './collapsiblesqlblock';
+import { CollapsibleSqlBlock } from './CollapsibleSqlBlock';
 import { ResultTable, AffectedRecords } from './ResultTable';
 import { NotesSection, ActionButtons } from './QueryActions';
 import MarkdownQueryBlock from './MarkdownQueryBlock';
+import { ToolStatusBadge } from './ToolStatusBadge';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface AssistantMessageProps {
   content: string;
+  /**
+   * Name of the MCP tool currently executing (e.g. "execute_query").
+   * Passed down from chat.tsx during streaming; null when idle.
+   * Rendered as an animated badge — never baked into message content.
+   */
+  activeToolName?: string | null;
   /** Called when the user clicks Accept (true) or Reject (false). */
   onConfirm?: (accepted: boolean) => void;
   /** Called when the user clicks "Explain this". */
@@ -48,6 +38,7 @@ export interface AssistantMessageProps {
 
 export function AssistantMessage({
   content,
+  activeToolName = null,
   onConfirm,
   onExplain,
   onConfirmationStateChange,
@@ -77,9 +68,14 @@ export function AssistantMessage({
   // ── Non-JSON fallback (tool status lines, errors, etc.) ────────────────
   if (!structured) {
     return (
-      <pre className='whitespace-pre-wrap break-words text-sm font-sans'>
-        {content}
-      </pre>
+      <div className='space-y-2'>
+        <ToolStatusBadge toolName={activeToolName} />
+        {content.trim() && (
+          <pre className='whitespace-pre-wrap break-words text-sm font-sans'>
+            {content}
+          </pre>
+        )}
+      </div>
     );
   }
 
@@ -118,6 +114,10 @@ export function AssistantMessage({
       <RiskHeader riskCfg={riskCfg} />
 
       <div className='p-4 space-y-4 bg-background'>
+
+        {/* Animated tool execution badge — only visible while streaming */}
+        <ToolStatusBadge toolName={activeToolName} />
+
         {/* Tool-call status lines, e.g. "Executing tool: query..." */}
         {prefixLines.map((line, i) => (
           <p
