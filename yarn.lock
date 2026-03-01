@@ -5446,7 +5446,7 @@ queue-microtask@^1.2.2:
 
 radix-ui@^1.4.3:
   version "1.4.3"
-  resolved "https://registry.npmjs.org/radix-ui/-/radix-ui-1.4.3.tgz"
+  resolved "https://registry.yarnpkg.com/radix-ui/-/radix-ui-1.4.3.tgz#17712d9e26ee61fdf4cd3969f4e16a794419508b"
   integrity sha512-aWizCQiyeAenIdUbqEpXgRA1ya65P13NKn/W8rWkcN0OPkRDxdBVLWnIEDsS2RpwCK2nobI7oMUSmexzTDyAmA==
   dependencies:
     "@radix-ui/primitive" "1.1.3"
