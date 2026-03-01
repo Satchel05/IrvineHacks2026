@@ -10,8 +10,8 @@ export function ThemeToggle() {
   const isDark = theme === "dark";
 
   return (
-    <SidebarMenuButton onClick={toggleTheme}>
-      <div className="relative w-4 h-4">
+    <SidebarMenuButton onClick={toggleTheme} className="h-12 py-3">
+      <div className="relative w-4 h-5">
         <AnimatePresence mode="wait" initial={false}>
           {isDark ? (
             <motion.div
@@ -22,7 +22,7 @@ export function ThemeToggle() {
               transition={{ duration: 0.4, ease: "easeOut" }}
               className="absolute inset-0"
             >
-              <Sun className="w-4 h-4 text-amber-400" />
+              <Sun className="w-5 h-5 text-amber-400 ml-1 drop-shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
             </motion.div>
           ) : (
             <motion.div
@@ -33,21 +33,22 @@ export function ThemeToggle() {
               transition={{ duration: 0.4, ease: "easeOut" }}
               className="absolute inset-0"
             >
-              <Moon className="w-4 h-4" />
+              <Moon className="w-5 h-5 text-indigo-400 ml-1 drop-shadow-[0_0_6px_rgba(129,140,248,0.8)]" />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
       <AnimatePresence mode="wait" initial={false}>
         <motion.span
-          key={isDark ? "light" : "dark"}
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -5 }}
-          transition={{ duration: 0.25, ease: "easeOut" }}
-        >
-          {isDark ? "Light Mode" : "Dark Mode"}
-        </motion.span>
+        className="text-sm m-4"
+    key={isDark ? "light" : "dark"}
+    initial={{ opacity: 0, x: -6 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: 6 }}
+    transition={{ duration: 0.25, ease: "easeOut" }}
+  >
+    {isDark ? "Light Mode" : "Dark Mode"}
+  </motion.span>
       </AnimatePresence>
     </SidebarMenuButton>
   );

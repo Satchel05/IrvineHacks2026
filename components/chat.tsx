@@ -111,7 +111,7 @@ function MessageBubble({
       <Avatar isUser={isUser} />
       <div
         className={cn(
-          "flex-1 max-w-[85%] min-w-0 overflow-hidden",
+          "flex-1 max-w-[90%] min-w-0 overflow-hidden",
           // User bubbles keep their colored pill; assistant messages are now
           // their own self-contained cards — no extra bg wrapper needed.
           isUser
