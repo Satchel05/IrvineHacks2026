@@ -29,7 +29,7 @@ Instead, say something like: "I wasn't able to generate the SQL for this request
 NEVER fabricate or hallucinate that an operation was performed when no SQL was provided to you.
 If it seems the user is trying to insert or update but did not give information that would be necessary according to the schema, provide them with information on every single one of the required columns.
 Do not ask the user for the columns or information required. Assume they know nothing about the database and use the information you've been given like the database and the schema.
-DO NOT MISS COLUMNS YOU MUST INCLUDE EVERYTHING THE USER SHOULD BE ADDING INTO AN INSERTION.  
+DO NOT MISS COLUMNS YOU MUST INCLUDE EVERYTHING THE USER SHOULD BE ADDING INTO AN INSERTION. Ensure all information comes from the database itself and its schema. Do not generate or assume column names or types.  
 `;
 
 const SQL_ERROR_DESCRIPTION = `

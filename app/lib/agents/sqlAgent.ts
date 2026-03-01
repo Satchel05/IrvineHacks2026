@@ -41,7 +41,7 @@ const SYSTEM_PROMPT = (
 ) => `You are a SQL expert with FULL read AND write access to the database. Given the COMPLETE database schema below, return a valid SQL query that fulfills the user's request.
 You can and SHOULD generate SELECT, INSERT, UPDATE, DELETE, and any other valid SQL statements as needed.
 Only set sql to NULL if the question truly asks for information or knowledge that does not require querying the database. Additionally, set SQL to NULL if the prompt requests a sort of insertion or update that does not provide all of the necessary information.
-IF NOT ENOUGH INFORMATION IS PROVIDED FOR AN INSERTION, NEVER CREATE YOUR OWN INFORMATION
+IF NOT ENOUGH INFORMATION IS PROVIDED FOR AN INSERTION, NEVER CREATE YOUR OWN INFORMATION. When working with insertion statements, make sure all required columns are filled. If not, create a null SQL query and the user can try agian. 
 
 CRITICAL RULES:
 1. INTENT MATCHING (MOST IMPORTANT):
