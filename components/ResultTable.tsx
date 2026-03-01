@@ -11,6 +11,7 @@
 import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getRiskConfig } from "./risk";
 
 type SortDirection = "asc" | "desc" | null;
 interface SortState {
@@ -162,27 +163,32 @@ function getRowCount(result: string, sql: string): number | null {
 
 interface AffectedRecordsProps {
   result: string;
-  /** The SQL string — needed to distinguish SELECT vs write operations. */
   sql: string;
-  countColor: string;
+  riskCfg: RiskConfig; // ← was `countColor: string`, now pass the whole config
 }
 
-export function AffectedRecords({ result, sql, countColor }: AffectedRecordsProps) {
+export function AffectedRecords({ result, sql, riskCfg }: AffectedRecordsProps) {
   const count = getRowCount(result, sql);
   if (count === null) return null;
 
-  const isWrite = isWriteOperation(sql);
-
-  return (<>
-    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-  {isWriteOperation(sql) ? "Rows Affected" : "Rows Returned"}
-</p>
-<p className={cn("text-2xl font-bold", countColor)}>
-  {count?.toLocaleString() ?? "0"}{" "}
-  <span className="text-sm font-normal text-muted-foreground">
-    {count === 1 ? "row" : "rows"}
-  </span>
-</p>
-</>
+  return (
+    <div
+      className={cn(
+        "rounded-lg px-6 py-4 w-full select-none border",
+        riskCfg.notesBg,
+      )}
+    >
+      <p className={cn("text-sm font-semibold tracking-wide mb-1", riskCfg.notesTitleColor)}>
+        Affected Records
+      </p>
+      <div className="flex flex-row items-center gap-2">
+        <p className={cn("text-3xl font-bold leading-none", riskCfg.countColor)}>
+          {count.toLocaleString()}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {count === 1 ? "record" : "records"}
+        </p>
+      </div>
+    </div>
   );
 }

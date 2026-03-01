@@ -29,6 +29,8 @@ export interface RiskConfig {
   notesTitle: string;
   notesTitleColor: string;
   bulletColor: string;
+  borderColor: string;
+  bgColor: string;
 }
 
 const RISK_CONFIG: Record<RiskLevel, Omit<RiskConfig, "level">> = {
@@ -46,6 +48,8 @@ const RISK_CONFIG: Record<RiskLevel, Omit<RiskConfig, "level">> = {
     notesTitle: "Notes",
     notesTitleColor: "text-emerald-700 dark:text-emerald-400",
     bulletColor: "text-emerald-600 dark:text-emerald-400",
+    borderColor: "emerald-900",
+    bgColor: "bg-emerald-600/10"
   },
   1: {
     label: "Moderate-Risk Operation Detected",
@@ -61,6 +65,8 @@ const RISK_CONFIG: Record<RiskLevel, Omit<RiskConfig, "level">> = {
     notesTitle: "Important Notes",
     notesTitleColor: "text-amber-700 dark:text-amber-400",
     bulletColor: "text-amber-500",
+    borderColor: "amber-900",
+    bgColor: "bg-amber-600/10"
   },
   2: {
     label: "High-Risk Operation Detected",
@@ -76,6 +82,8 @@ const RISK_CONFIG: Record<RiskLevel, Omit<RiskConfig, "level">> = {
     notesTitle: "⚠ Critical Warnings ⚠",
     notesTitleColor: "text-red-700 dark:text-red-400",
     bulletColor: "text-red-500",
+    borderColor: "red-900",
+    bgColor: "bg-red-600/10",
   },
   3: {
     label: "CRITICAL: Extreme-Risk Operation",
@@ -91,6 +99,8 @@ const RISK_CONFIG: Record<RiskLevel, Omit<RiskConfig, "level">> = {
     notesTitle: "⚠ Critical Warnings ⚠",
     notesTitleColor: "text-red-700 dark:text-red-400",
     bulletColor: "text-red-500",
+    borderColor: "red-900",
+    bgColor: "bg-red-600/10"
   },
 };
 

@@ -99,7 +99,7 @@ function MessageBubble({
         )}
       >
         {isUser ? (
-          <pre className="whitespace-pre-wrap break-words text-sm font-sans">
+          <pre className="whitespace-pre-wrap padding-20px break-words text-sm font-sans">
             {message.content}
           </pre>
         ) : (

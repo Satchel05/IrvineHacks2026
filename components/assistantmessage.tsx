@@ -137,13 +137,13 @@ export function AssistantMessage({
         )}
 
         {result && (
-          <AffectedRecords
-            result={result}
-            sql={sqlString}
-            countColor={riskCfg.countColor}
-          />
-        )}
-        {result && <ResultTable result={result} />}
+  <AffectedRecords
+    result={result}
+    sql={sqlString}
+    riskCfg={riskCfg}
+  />
+)}
+{result && <ResultTable result={result} />}
 
         {cleanedConfirmation && (
           <NotesSection
