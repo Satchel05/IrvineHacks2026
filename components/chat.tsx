@@ -70,6 +70,7 @@ function Avatar({ isUser }: { isUser: boolean }) {
  */
 function MessageBubble({
   message,
+  activeToolName,
   onConfirm,
   onExplain, // ← NEW
   onConfirmationStateChange,
@@ -77,6 +78,7 @@ function MessageBubble({
 }: {
   message: Message;
   onConfirm?: (accepted: boolean) => void;
+  activeToolName?: string | null;
   onExplain?: () => void; // ← NEW
   onConfirmationStateChange?: (messageId: string, pending: boolean) => void;
   onDecisionPersist?: (decision: 'accepted' | 'rejected') => void;
@@ -106,7 +108,8 @@ function MessageBubble({
             // <pre className="whitespace-pre-wrap text-sm font-sans">{message.content}</pre>
           : <AssistantMessage
               content={message.content}
-              onConfirm={onConfirm}
+    activeToolName={activeToolName}   // ← add this
+    onConfirm={onConfirm}
               onExplain={onExplain} // ← NEW
               onConfirmationStateChange={(pending) =>
                 onConfirmationStateChange?.(message.id, pending)
@@ -126,7 +129,10 @@ function ThinkingIndicator() {
     <div className='flex gap-3 p-4'>
       <Avatar isUser={false} />
       <div className='flex items-center gap-2 text-muted-foreground'>
-        <Loader2 className='h-4 w-4 animate-spin' />
+        <span className='relative flex h-2 w-2'>
+          <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60' />
+          <span className='relative inline-flex h-2 w-2 rounded-full bg-primary' />
+        </span>
         <span className='text-sm'>Thinking...</span>
       </div>
     </div>
@@ -177,9 +183,12 @@ function SchemaLoadingState() {
 export function Chat({ connectionString }: ChatProps) {
   const [input, setInput] = useState('');
   const [schemaLoading, setSchemaLoading] = useState(false);
+  // const [liveToolStatus, setLiveToolStatus] = useState<string | null>(null);
   const [pendingConfirmationIds, setPendingConfirmationIds] = useState<
     Set<string>
   >(() => new Set());
+  const activeToolNameRef = useRef<string | null>(null);
+const [activeToolName, setActiveToolName] = useState<string | null>(null);
   /** Ref attached to an invisible div at the bottom of the messages list (for auto-scroll). */
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -198,10 +207,10 @@ export function Chat({ connectionString }: ChatProps) {
   const hasPendingConfirmation = pendingConfirmationIds.size > 0;
 
   // ── Auto-scroll to bottom when new messages arrive or content changes ───
-  const lastContent = messages.at(-1)?.content;
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, lastContent]);
+  // const lastContent = messages.at(-1)?.content;
+  // useEffect(() => {
+  //   bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // }, [messages.length, lastContent]);
 
   // ── Create a default session if none exists (first visit) ───────────────
   useEffect(() => {
@@ -330,13 +339,24 @@ export function Chat({ connectionString }: ChatProps) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          accumulated += decoder.decode(value, { stream: true });
-          updateMessage(activeId, asstMsg.id, accumulated);
+          const chunk = decoder.decode(value, { stream: true });
+
+if (chunk.startsWith('__TOOL_STATUS__:')) {
+  const toolName = chunk.replace('__TOOL_STATUS__:', '').trim();
+  const next = toolName === 'DONE' ? null : toolName;
+  activeToolNameRef.current = next;
+  setActiveToolName(next);        // triggers re-render so badge updates
+  continue;                       // ← do NOT touch accumulated
+}
+
+accumulated += chunk;
+updateMessage(activeId, asstMsg.id, accumulated);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Something went wrong';
         addMessage(activeId, { role: 'assistant', content: `Error: ${msg}` });
       } finally {
+        setActiveToolName(null);
         setLoading(activeId, false);
       }
     },
@@ -461,8 +481,14 @@ export function Chat({ connectionString }: ChatProps) {
             {messages.map((m) => (
               <MessageBubble
                 key={m.id}
-                message={m}
-                onConfirmationStateChange={handleConfirmationStateChange}
+  message={m}
+  // Only the last message is ever actively streaming
+  activeToolName={
+    m.id === messages.at(-1)?.id && m.role === 'assistant'
+      ? activeToolName
+      : null
+  }
+  onConfirmationStateChange={handleConfirmationStateChange}
                 onDecisionPersist={(decision) =>
                   handleDecisionPersist(m.id, decision)
                 }
@@ -482,7 +508,7 @@ export function Chat({ connectionString }: ChatProps) {
                 }
               />
             ))}
-            {isLoading && <ThinkingIndicator />}
+            {isLoading && messages.at(-1)?.role !== 'assistant' && <ThinkingIndicator />}
             {/* Invisible anchor for auto-scrolling */}
             <div ref={bottomRef} />
           </div>

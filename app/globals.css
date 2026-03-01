@@ -124,3 +124,29 @@
     @apply bg-background text-foreground;
   }
 }
+
+@theme {
+  --animate-shimmer: shimmer 2s linear infinite;
+
+  @keyframes shimmer {
+    0%   { background-position: 200% center; }
+    100% { background-position: -200% center; }
+  }
+}
+
+.wavy-letter {
+  transform: translateY(0);
+}
+
+.wavy-active {
+  animation: wave 1.2s ease-in-out infinite;
+}
+
+@keyframes wave {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
