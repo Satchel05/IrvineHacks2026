@@ -14,10 +14,16 @@ export async function POST(req: NextRequest) {
   if (!connectionString) return jsonError('Connection string is required');
 
   // Extract the latest user message as the question for the pipeline
-  const question = [...messages].reverse().find((m: ChatMessage) => m.role === 'user')?.content ?? '';
+  const question =
+    [...messages].reverse().find((m: ChatMessage) => m.role === 'user')
+      ?.content ?? '';
 
   try {
-    const pipelineResult = await pipeline(question, connectionString, messages as ChatMessage[]);
+    const pipelineResult = await pipeline(
+      question,
+      connectionString,
+      messages as ChatMessage[],
+    );
 
     const riskLevel = pipelineResult.risk?.risk ?? 0;
     const needsConfirmation = riskLevel >= 1;
@@ -28,12 +34,14 @@ export async function POST(req: NextRequest) {
       explanation: pipelineResult.explanation,
       result: pipelineResult.results?.result ?? '',
       rowCount: pipelineResult.risk?.rowEstimate ?? null,
-      confirmation: needsConfirmation
-        ? `This operation has risk level ${riskLevel} and will affect approximately ${pipelineResult.risk?.rowEstimate ?? '?'} rows. Please confirm to proceed.`
+      confirmation:
+        needsConfirmation ?
+          `This operation has risk level ${riskLevel} and will affect approximately ${pipelineResult.risk?.rowEstimate ?? '?'} rows. Please confirm to proceed.`
         : '',
       confirmation_required: needsConfirmation,
       user_confirmed: false,
       risk: riskLevel,
+      transactionId: pipelineResult.transactionId ?? null,
     };
 
     return Response.json(structured);

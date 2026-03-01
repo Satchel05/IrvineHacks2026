@@ -36,6 +36,17 @@ const knownTablesByConnection = (globalForMcp.__mcpKnownTables ??= new Map<
   Set<string>
 >());
 
+/** Clear cached schema for a connection so it's re-fetched on next query. */
+export function clearSchemaCache(connectionString?: string) {
+  if (connectionString) {
+    schemaCache.delete(connectionString);
+    knownTablesByConnection.delete(connectionString);
+  } else {
+    schemaCache.clear();
+    knownTablesByConnection.clear();
+  }
+}
+
 export async function getMCPClient(
   connectionString: string,
 ): Promise<CacheEntry> {
@@ -76,7 +87,16 @@ export async function initializeSchema(connectionString: string) {
     return cached;
   }
 
-  const { mcpClient } = await getMCPClient(connectionString);
+  const { mcpClient, tools } = await getMCPClient(connectionString);
+
+  // Log available tools so we know what the MCP server actually exposes
+  console.log(
+    '[initializeSchema] Available MCP tools:',
+    tools.map((t) => t.name).join(', '),
+  );
+
+  // Check if describe_table is available (the actual tool name on this MCP server)
+  const hasDescribeTable = tools.some((t) => t.name === 'describe_table');
 
   // Step 1: Get the raw list of tables from the MCP server
   const result = await mcpClient.callTool({
@@ -99,23 +119,59 @@ export async function initializeSchema(connectionString: string) {
   );
 
   // Step 4: Fetch detailed schema for up to 10 tables
+  // Use information_schema.columns directly since most MCP servers don't have describe_table_schema
   const details: string[] = [];
   for (const name of tableNames.slice(0, 10)) {
+    if (hasDescribeTable) {
+      // Use the MCP server's describe_table tool
+      try {
+        const res = await mcpClient.callTool({
+          name: 'describe_table',
+          arguments: { table_name: name },
+        });
+        const text = (res.content as MCPTextBlock[]).find(
+          (c) => c.type === 'text',
+        )?.text;
+        if (text) {
+          details.push(`Table: ${name}\n${text}`);
+          continue;
+        }
+      } catch {
+        // Fall through to information_schema
+      }
+    }
+
+    // Primary path: query column info via information_schema
     try {
-      const res = await mcpClient.callTool({
-        name: 'describe_table_schema',
-        arguments: { table_name: name },
+      const colRes = await mcpClient.callTool({
+        name: 'execute_query',
+        arguments: {
+          sql: `SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name = '${name}' AND table_schema = 'public' ORDER BY ordinal_position`,
+        },
       });
-      const text = (res.content as MCPTextBlock[]).find(
+      const colText = (colRes.content as MCPTextBlock[]).find(
         (c) => c.type === 'text',
       )?.text;
-      if (text) details.push(`Table: ${name}\n${text}`);
-    } catch {
-      // Schema details are optional — the table still counts even if describe fails
+      if (colText) {
+        details.push(`Table: ${name}\n${colText}`);
+      } else {
+        details.push(`Table: ${name}\n(column details unavailable)`);
+      }
+    } catch (err) {
+      console.warn(
+        `[initializeSchema] Failed to get columns for ${name}:`,
+        err,
+      );
+      details.push(`Table: ${name}\n(column details unavailable)`);
     }
   }
 
   const schemaResult = { tables: tableNames, details: details.join('\n\n') };
+  // Log the schema so we can debug what the LLM actually sees
+  console.log(
+    '[initializeSchema] Schema details for sqlAgent:\n',
+    schemaResult.details,
+  );
   schemaCache.set(connectionString, schemaResult);
   return schemaResult;
 }

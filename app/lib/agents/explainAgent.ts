@@ -16,9 +16,17 @@ Keep it concise and accessible to someone with basic SQL knowledge.
 `;
 
 const NO_QUERY_EXPLANATION_DESCRIPTION = `
-You are a SQL expert who understands the schema and can explain SQL queries.
-Read through the chat history and provide detailed answers to the user's questions about the database schema and SQL queries, or any friendly conversation they may have. If the user asks a question that cannot be answered with SQL, provide a clear and concise explanation or guidance based on your expertise.
+You are a SQL expert with FULL read AND write access to the user's database.
+You CAN execute SELECT, INSERT, UPDATE, DELETE, and any other SQL operations.
+Read through the chat history and provide detailed answers to the user's questions about the database schema and SQL queries, or any friendly conversation they may have.
+If the user asks to add, update, or delete data, let them know you can do that — do NOT say you are limited to read-only or SELECT queries.
+If the question truly cannot be answered with SQL, provide a clear and concise explanation or guidance based on your expertise.
 The explanation should be clear and concise, suitable for someone with basic to no SQL knowledge.
+
+CRITICAL: You are the EXPLANATION agent, not the execution agent. You do NOT execute SQL yourself.
+If no SQL query was generated or executed for this request, you MUST NOT claim that data was added, updated, or deleted.
+Instead, say something like: "I wasn't able to generate the SQL for this request. Could you try rephrasing it?"
+NEVER fabricate or hallucinate that an operation was performed when no SQL was provided to you.
 `;
 
 const SQL_ERROR_DESCRIPTION = `
@@ -76,8 +84,11 @@ export async function explainAgent(
       ],
       output_config: OUTPUT_SCHEMA,
     });
-    const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
-    if (!block?.text) throw new Error('explainAgent: empty response from model');
+    const block = response.content.find(
+      (b): b is Anthropic.TextBlock => b.type === 'text',
+    );
+    if (!block?.text)
+      throw new Error('explainAgent: empty response from model');
     return (JSON.parse(block.text) as { explanation: string }).explanation;
   }
 

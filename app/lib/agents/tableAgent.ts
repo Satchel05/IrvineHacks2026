@@ -25,45 +25,61 @@ For UPDATE/DELETE: the rows that were affected.
 CRITICAL: Never leave result empty — always use the raw database result exactly as returned.
 `;
 
-// ─── Preview Transaction ────────────────────────────────────────────────────
+// ─── Result interface ───────────────────────────────────────────────────────
 
 export interface PreviewResult {
   result: string; // LLM-formatted preview of affected rows
   sql: string;
+  transactionId?: string; // MCP transaction ID for write operations (needs commit/rollback)
+}
+
+/** Extract the raw text from MCP content blocks */
+function extractMCPText(content: MCPTextBlock[]): string {
+  return content
+    .filter((b) => b?.type === 'text' && typeof b.text === 'string')
+    .map((b) => b.text!)
+    .join('\n');
+}
+
+/** Parse transaction_id from MCP DML response text */
+function extractTransactionId(rawText: string): string | null {
+  try {
+    // The MCP response is JSON with transaction_id at the top, followed by instructions
+    const jsonMatch = rawText.match(/\{[\s\S]*?"transaction_id"[\s\S]*?\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return parsed.transaction_id ?? null;
+    }
+  } catch {
+    /* not JSON */
+  }
+  // Fallback: regex for transaction ID pattern
+  const match = rawText.match(/transaction_id["\s:]+["']?(tx_[a-z0-9_]+)/i);
+  return match?.[1] ?? null;
 }
 
 /**
- * Execute a write SQL statement inside a transaction without committing.
- * The real rows are affected and readable, but nothing is persisted until
- * `approvePreview` is called. Call `rejectPreview` to roll back.
- *
- * Pass `connectionString` to approve/reject.
+ * Execute SQL and return results for display.
+ * - SELECT: executed directly via execute_query.
+ * - Writes (INSERT/UPDATE/DELETE): executed via execute_dml_ddl_dcl_tcl, which
+ *   creates a PENDING TRANSACTION that must be committed or rolled back via
+ *   `approvePreview` or `rejectPreview` using the returned `transactionId`.
  */
 export async function tableAgent(
   sql: string,
   connectionString: string,
   schema: string,
 ): Promise<PreviewResult> {
-  /**
-   * Determines whether the provided SQL string is a SELECT query.
-   * Uses a case-insensitive regular expression to check if the trimmed SQL
-   * statement begins with the SELECT keyword, ignoring leading whitespace.
-   * @param sql - The SQL query string to test
-   * @returns true if the SQL statement is a SELECT query, false otherwise
-   */
   const isSelect = /^\s*SELECT\b/i.test(sql.trim());
   const { mcpClient } = await getMCPClient(connectionString);
 
-  // SELECTs don't need transaction wrapping — execute directly and return
+  // SELECTs — execute directly, no transaction needed
   if (isSelect) {
     const mcpResult = await mcpClient.callTool({
       name: 'execute_query',
       arguments: { sql },
     });
-    const rawTextForSelect = (mcpResult.content as MCPTextBlock[])
-      .filter((b) => b?.type === 'text' && typeof b.text === 'string')
-      .map((b) => b.text!)
-      .join('\n');
+    const rawText = extractMCPText(mcpResult.content as MCPTextBlock[]);
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
@@ -71,7 +87,7 @@ export async function tableAgent(
       messages: [
         {
           role: 'user',
-          content: `SQL executed:\n${sql}\n\nRaw result:\n${rawTextForSelect}\n\nSchema:\n${schema}`,
+          content: `SQL executed:\n${sql}\n\nRaw result:\n${rawText}\n\nSchema:\n${schema}`,
         },
       ],
       output_config: {
@@ -96,67 +112,48 @@ export async function tableAgent(
     return { result: parsed.result, sql };
   }
 
-  // Write ops: open a transaction — caller must invoke approvePreview or rejectPreview
-  // Non-SELECT statements (BEGIN, INSERT, UPDATE, DELETE, COMMIT, ROLLBACK)
-  // MUST use execute_dml_ddl_dcl_tcl — execute_query only allows SELECT.
-  await mcpClient.callTool({
+  // ── Write operations (INSERT/UPDATE/DELETE) ──────────────────────────────
+  // The MCP server's execute_dml_ddl_dcl_tcl executes the DML and creates a
+  // PENDING TRANSACTION with a transaction_id. The data is visible within
+  // the transaction but NOT committed until execute_commit is called.
+  //
+  // Flow:
+  //   1. Execute DML → get transaction_id (data pending)
+  //   2. Return preview + transaction_id to frontend
+  //   3. User approves → call execute_commit(transaction_id)
+  //      User rejects → call execute_rollback(transaction_id)
+
+  console.log('[tableAgent] Executing write DML:', sql.slice(0, 120));
+  const mcpResult = await mcpClient.callTool({
     name: 'execute_dml_ddl_dcl_tcl',
-    arguments: { sql: 'BEGIN' },
+    arguments: { sql },
   });
 
-  let rawText: string;
-  try {
-    const mcpResult = await mcpClient.callTool({
-      name: 'execute_dml_ddl_dcl_tcl',
-      arguments: { sql },
-    });
+  const rawText = extractMCPText(mcpResult.content as MCPTextBlock[]);
+  console.log('[tableAgent] DML result:', rawText.slice(0, 400));
 
-    rawText = (mcpResult.content as MCPTextBlock[])
-      .filter((b) => b?.type === 'text' && typeof b.text === 'string')
-      .map((b) => b.text!)
-      .join('\n');
-
-    // MCP tools return errors in-band (isError flag or error text) rather than
-    // throwing.  If the SQL failed the PG transaction is now in an aborted
-    // state — we must ROLLBACK immediately or every subsequent command on this
-    // connection will fail with "current transaction is aborted".
-    const looksLikeError =
-      mcpResult.isError ||
-      /\berror\b/i.test(rawText) ||
-      /\bfailed\b/i.test(rawText);
-    if (looksLikeError) {
-      await mcpClient.callTool({
-        name: 'execute_dml_ddl_dcl_tcl',
-        arguments: { sql: 'ROLLBACK' },
-      });
-      throw new Error(`SQL execution failed: ${rawText}`);
-    }
-  } catch (err) {
-    // If execution fails (thrown by us above, or by the MCP call itself),
-    // ensure rollback and rethrow
-    // Guard: only rollback if we haven't already (i.e. the catch is from callTool itself)
-    if (
-      !(err instanceof Error && err.message.startsWith('SQL execution failed:'))
-    ) {
-      await mcpClient
-        .callTool({
-          name: 'execute_dml_ddl_dcl_tcl',
-          arguments: { sql: 'ROLLBACK' },
-        })
-        .catch(() => {}); // best-effort rollback
-    }
-    throw err;
+  // Check for errors
+  if (mcpResult.isError) {
+    throw new Error(`SQL execution failed: ${rawText}`);
   }
 
-  // Format the live (uncommitted) result with the LLM
+  // Extract the transaction ID
+  const transactionId = extractTransactionId(rawText);
+  console.log('[tableAgent] Transaction ID:', transactionId);
+
+  if (!transactionId) {
+    console.warn('[tableAgent] No transaction ID found in MCP response!');
+  }
+
+  // Ask the LLM to format the write result for display
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
-    system: `You are a SQL result formatter. Given a raw database result from an UNCOMMITTED transaction, return the rows or affected records as a clean JSON-stringified value. Make clear this is a preview — not yet committed.\n\n${TABLE_REQUIREMENTS}`,
+    system: `You are a SQL result formatter. The DML has been executed but NOT committed yet. Format the result for preview.\n\n${TABLE_REQUIREMENTS}`,
     messages: [
       {
         role: 'user',
-        content: `SQL executed (inside open transaction, NOT yet committed):\n${sql}\n\nRaw database result:\n${rawText}\n\nSchema:\n${schema}`,
+        content: `SQL executed (pending commit):\n${sql}\n\nMCP result:\n${rawText}\n\nSchema:\n${schema}`,
       },
     ],
     output_config: {
@@ -177,40 +174,61 @@ export async function tableAgent(
   const block = response.content.find(
     (b): b is Anthropic.TextBlock => b.type === 'text',
   );
-  const text = block?.text;
-  if (!text) {
-    await mcpClient.callTool({
-      name: 'execute_dml_ddl_dcl_tcl',
-      arguments: { sql: 'ROLLBACK' },
-    });
-    throw new Error('executePreview: empty response from model');
+  if (!block?.text) throw new Error('tableAgent: empty response from model');
+  const parsed = JSON.parse(block.text) as { result: string };
+
+  return {
+    result: parsed.result,
+    sql,
+    transactionId: transactionId ?? undefined,
+  };
+}
+
+/**
+ * Commit a pending transaction when the user approves.
+ * Uses the MCP `execute_commit` tool with the transaction ID.
+ */
+export async function approvePreview(
+  connectionString: string,
+  transactionId: string,
+): Promise<void> {
+  console.log('[approvePreview] Committing transaction:', transactionId);
+
+  const { mcpClient } = await getMCPClient(connectionString);
+  const mcpResult = await mcpClient.callTool({
+    name: 'execute_commit',
+    arguments: { transaction_id: transactionId },
+  });
+
+  const rawText = extractMCPText(mcpResult.content as MCPTextBlock[]);
+  console.log('[approvePreview] Commit result:', rawText.slice(0, 300));
+
+  if (mcpResult.isError || /\berror\b/i.test(rawText)) {
+    throw new Error(`Commit failed: ${rawText}`);
   }
-
-  const parsed = JSON.parse(text) as { result: string };
-
-  return { result: parsed.result, sql };
+  console.log('[approvePreview] Transaction committed successfully.');
 }
 
 /**
- * Commit the open transaction for this connection.
- * Call this when the user approves the preview.
+ * Rollback a pending transaction when the user rejects.
+ * Uses the MCP `execute_rollback` tool with the transaction ID.
  */
-export async function approvePreview(connectionString: string): Promise<void> {
-  const { mcpClient } = await getMCPClient(connectionString);
-  await mcpClient.callTool({
-    name: 'execute_dml_ddl_dcl_tcl',
-    arguments: { sql: 'COMMIT' },
-  });
-}
+export async function rejectPreview(
+  connectionString: string,
+  transactionId?: string,
+): Promise<void> {
+  if (!transactionId) {
+    console.log('[rejectPreview] No transaction ID — nothing to rollback.');
+    return;
+  }
+  console.log('[rejectPreview] Rolling back transaction:', transactionId);
 
-/**
- * Roll back the open transaction for this connection.
- * Call this when the user rejects the preview.
- */
-export async function rejectPreview(connectionString: string): Promise<void> {
   const { mcpClient } = await getMCPClient(connectionString);
-  await mcpClient.callTool({
-    name: 'execute_dml_ddl_dcl_tcl',
-    arguments: { sql: 'ROLLBACK' },
+  const mcpResult = await mcpClient.callTool({
+    name: 'execute_rollback',
+    arguments: { transaction_id: transactionId },
   });
+
+  const rawText = extractMCPText(mcpResult.content as MCPTextBlock[]);
+  console.log('[rejectPreview] Rollback result:', rawText.slice(0, 300));
 }
