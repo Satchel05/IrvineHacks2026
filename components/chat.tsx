@@ -89,6 +89,7 @@ function MessageBubble({
   onExplain, // ← NEW
   onConfirmationStateChange,
   onDecisionPersist,
+  isLatest
 }: {
   message: Message;
   onConfirm?: (accepted: boolean) => void;
@@ -96,6 +97,7 @@ function MessageBubble({
   onExplain?: () => void; // ← NEW
   onConfirmationStateChange?: (messageId: string, pending: boolean) => void;
   onDecisionPersist?: (decision: "accepted" | "rejected") => void;
+  isLatest?: boolean;
 }) {
   const isUser = message.role === "user";
   const { theme } = useTheme()
@@ -127,6 +129,7 @@ function MessageBubble({
             activeToolName={activeToolName} // ← add this
             onConfirm={onConfirm}
             onExplain={onExplain} // ← NEW
+            isLatest={isLatest}
             onConfirmationStateChange={(pending) =>
               onConfirmationStateChange?.(message.id, pending)
             }
@@ -498,6 +501,7 @@ export function Chat({ connectionString }: ChatProps) {
               <MessageBubble
                 key={m.id}
                 message={m}
+                isLatest={m.id === messages.at(-1)?.id}
                 // Only the last message is ever actively streaming
                 activeToolName={
                   m.id === messages.at(-1)?.id && m.role === "assistant"
