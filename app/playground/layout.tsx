@@ -69,6 +69,7 @@ const NAV_ITEMS = [
  *  - Clicks inside the input are stopped from propagating (so they
  *    don't trigger the parent menu button's onClick).
  */
+
 function InlineRenameInput({
   value,
   onSave,
@@ -150,6 +151,7 @@ function AppSidebar() {
   const setActive = useChatStore((s) => s.setActiveSession);
   const remove = useChatStore((s) => s.deleteSession);
   const rename = useChatStore((s) => s.renameSession);
+  
 
   /** Tracks which session is currently being renamed (null = none). */
   const [editingId, setEditingId] = useState<string | null>(null);

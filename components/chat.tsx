@@ -52,16 +52,30 @@ const schemaDone = new Set<string>();
 
 /** Round avatar circle — user (primary color) or bot (muted). */
 function Avatar({ isUser }: { isUser: boolean }) {
+  const { theme } = useTheme()
+
+  const backgroundColor =
+    theme === "dark" ? "bg-black" : "bg-muted"
+
+  const textPrimaryColor =
+    theme === "dark" ? "text-primary-white" : "text-primary-black"
+
   return (
     <div
       className={cn(
         "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-        isUser ? "bg-primary text-primary-foreground" : "bg-muted",
+        isUser
+          ? cn("bg-primary", backgroundColor)
+          : backgroundColor
       )}
     >
-      {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+      {isUser ? (
+        <User className="h-4 w-4" />
+      ) : (
+        <Bot className="h-4 w-4" />
+      )}
     </div>
-  );
+  )
 }
 
 /**
