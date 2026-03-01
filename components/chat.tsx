@@ -226,9 +226,19 @@ export function Chat({ connectionString }: ChatProps) {
 
   // ── Auto-scroll to bottom when the chat re-renders with new content ───
   const lastContent = messages.at(-1)?.content;
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.length, lastContent, isLoading, activeToolName]);
+  const prevSessionIdRef = useRef<string | null>(null);
+
+useEffect(() => {
+  if (!bottomRef.current) return;
+
+  const isNewChat = prevSessionIdRef.current !== activeId;
+  prevSessionIdRef.current = activeId;
+
+  bottomRef.current.scrollIntoView({
+    behavior: isNewChat ? "auto" : "smooth", // jump for new chat, smooth for new messages
+    block: "end",
+  });
+}, [messages.length, lastContent, isLoading, activeToolName, activeId]);
 
   // ── Create a default session if none exists (first visit) ───────────────
   useEffect(() => {
