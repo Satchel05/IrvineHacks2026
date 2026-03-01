@@ -4,6 +4,53 @@ import type { MCPTextBlock } from '@/app/lib/utils/types';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+function isReadQuery(sql: string): boolean {
+  return /^\s*(SELECT|WITH|EXPLAIN)\b/i.test(sql.trim());
+}
+
+function normalizeResultToJsonString(rawText: string): string {
+  const trimmed = rawText.trim();
+
+  if (!trimmed) {
+    return JSON.stringify([{ notice: 'No rows returned' }]);
+  }
+
+  const tryParse = (text: string): unknown | null => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  };
+
+  const parsed = tryParse(trimmed);
+  if (parsed !== null) {
+    if (Array.isArray(parsed)) return JSON.stringify(parsed);
+    if (typeof parsed === 'object' && parsed) {
+      const obj = parsed as Record<string, unknown>;
+      if (Array.isArray(obj.rows)) return JSON.stringify(obj.rows);
+      if (Array.isArray(obj.data)) return JSON.stringify(obj.data);
+    }
+    return JSON.stringify(parsed);
+  }
+
+  const jsonMatch = trimmed.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+  if (jsonMatch) {
+    const extracted = tryParse(jsonMatch[1]);
+    if (extracted !== null) {
+      if (Array.isArray(extracted)) return JSON.stringify(extracted);
+      if (typeof extracted === 'object' && extracted) {
+        const obj = extracted as Record<string, unknown>;
+        if (Array.isArray(obj.rows)) return JSON.stringify(obj.rows);
+        if (Array.isArray(obj.data)) return JSON.stringify(obj.data);
+      }
+      return JSON.stringify(extracted);
+    }
+  }
+
+  return JSON.stringify([{ result: trimmed }]);
+}
+
 // ─── Shared SQL Requirements ──────────────────────────────────────────────────
 
 const TABLE_REQUIREMENTS = `
@@ -70,7 +117,7 @@ export async function tableAgent(
   connectionString: string,
   schema: string,
 ): Promise<PreviewResult> {
-  const isSelect = /^\s*SELECT\b/i.test(sql.trim());
+  const isSelect = isReadQuery(sql);
   const { mcpClient } = await getMCPClient(connectionString);
 
   // SELECTs — execute directly, no transaction needed
@@ -80,28 +127,15 @@ export async function tableAgent(
       arguments: { sql },
     });
     const rawText = extractMCPText(mcpResult.content as MCPTextBlock[]);
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      output_config: {
-        format: {
-          type: 'json_schema',
-          schema: {
-            type: 'object',
-            properties: {
-              result: { type: 'string', description: TABLE_REQUIREMENTS },
-            },
-            required: ['result'],
-            additionalProperties: false,
-          },
-        },
-      },
-    });
-    const block = response.content.find(
-      (b): b is Anthropic.TextBlock => b.type === 'text',
-    );
-    if (!block?.text) throw new Error('tableAgent: empty response from model');
-    const parsed = JSON.parse(block.text) as { result: string };
-    return { result: parsed.result, sql };
+
+    if (mcpResult.isError) {
+      throw new Error(rawText || 'execute_query failed');
+    }
+
+    return {
+      result: normalizeResultToJsonString(rawText),
+      sql,
+    };
   }
 
   // ── Write operations (INSERT/UPDATE/DELETE) ──────────────────────────────

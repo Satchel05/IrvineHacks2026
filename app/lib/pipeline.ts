@@ -5,6 +5,10 @@ import { tableAgent } from './agents/tableAgent';
 import { explainAgent } from './agents/explainAgent';
 import type { ChatMessage } from './utils/types';
 
+function isReadQuery(sql: string): boolean {
+  return /^\s*(SELECT|WITH|EXPLAIN)\b/i.test(sql.trim());
+}
+
 export async function pipeline(
   question: string,
   connectionString: string,
@@ -16,15 +20,25 @@ export async function pipeline(
   console.log('[pipeline] sqlAgent returned:', sql?.slice(0, 120));
 
   if (sql) {
-    const isSelect = /^\s*SELECT\b/i.test(sql.trim());
+    const isSelect = isReadQuery(sql);
 
     if (isSelect) {
       // SELECT queries: all three agents are independent — run in parallel
       const [risk, tableResult, explanation] = await Promise.all([
         riskAgent(sql),
         tableAgent(sql, connectionString, schema.details).catch((err) => {
-          console.error('[pipeline] tableAgent error:', err);
-          return null;
+          const message = err instanceof Error ? err.message : String(err);
+          console.error('[pipeline] tableAgent error:', message);
+          return {
+            sql,
+            result: JSON.stringify([
+              {
+                error: 'Query execution failed',
+                details: message,
+              },
+            ]),
+            transactionId: undefined,
+          };
         }),
         explainAgent(sql, chatHistory, connectionString, question),
       ]);
