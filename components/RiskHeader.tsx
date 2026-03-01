@@ -1,12 +1,6 @@
-/**
- * RiskHeader.tsx — Colored header bar showing risk level, icon, and badge.
- *
- * Rendered at the top of every AssistantMessage card.
- * Color scheme is driven by the `RiskConfig` from risk.ts.
- */
-
 import { cn } from "@/lib/utils";
 import type { RiskConfig } from "./risk";
+import { useTheme } from "./theme-provider";
 
 interface RiskHeaderProps {
   riskCfg: RiskConfig;
@@ -14,30 +8,35 @@ interface RiskHeaderProps {
 
 export function RiskHeader({ riskCfg }: RiskHeaderProps) {
   const Icon = riskCfg.icon;
+  const { theme } = useTheme()
+  const labelTextColor = theme === "dark" ? "text-white" : "text-slate-800";
 
   return (
     <div
       className={cn(
-        "flex items-center gap-3 px-4 py-3 border-b",
-        riskCfg.headerBg,
-        riskCfg.headerBorder,
+        "flex items-start gap-3 px-4 py-3 border rounded-t-md",
       )}
+      role="alert"
+      aria-live="assertive"
     >
-      <Icon className={cn("h-5 w-5 shrink-0", riskCfg.iconColor)} />
-
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-sm text-foreground">{riskCfg.label}</p>
-        <p className="text-xs text-muted-foreground">{riskCfg.subtitle}</p>
-      </div>
-
-      <span
+      <div
         className={cn(
-          "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold tracking-wide",
-          riskCfg.badgeBg,
+          "flex items-center justify-center rounded-lg border border-red-700 p-2",
+          "min-w-[36px] min-h-[36px]",
+          riskCfg.iconColor || "text-red-600", riskCfg.notesBg
         )}
       >
-        {riskCfg.badge}
-      </span>
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </div>
+
+      <div className="flex flex-col min-w-0">
+        <p className={cn("font-bold text-[18px] leading-tight tracking-wide", labelTextColor)}>
+          {riskCfg.label}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5 leading-tight">
+          {riskCfg.subtitle}
+        </p>
+      </div>
     </div>
   );
 }

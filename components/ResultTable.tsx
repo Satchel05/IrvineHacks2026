@@ -8,9 +8,10 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
-import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState, useMemo } from "react";
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { getRiskConfig } from "./risk";
 
 type SortDirection = 'asc' | 'desc' | null;
 interface SortState {
@@ -169,9 +170,8 @@ function getRowCount(result: string, sql: string): number | null {
 
 interface AffectedRecordsProps {
   result: string;
-  /** The SQL string — needed to distinguish SELECT vs write operations. */
   sql: string;
-  countColor: string;
+  riskCfg: RiskConfig; // ← was `countColor: string`, now pass the whole config
 }
 
 export function AffectedRecords({

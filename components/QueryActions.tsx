@@ -42,12 +42,12 @@ export function NotesSection({
 
   return (
     <div className={cn("rounded-md border p-3 space-y-2", notesBg)}>
-      <p className={cn("text-xs font-semibold uppercase tracking-wider", notesTitleColor)}>
+      <p className={cn("text-s font-semibold uppercase tracking-wider", notesTitleColor)}>
         {notesTitle}
       </p>
       <ul className="space-y-1">
         {bullets.map((b, i) => (
-          <li key={i} className="flex gap-2 text-xs text-foreground/80">
+          <li key={i} className="flex gap-2 text-s text-foreground/80">
             <span className={cn("mt-0.5 shrink-0", bulletColor)}>•</span>
             <span>{b}</span>
           </li>
@@ -64,6 +64,7 @@ interface ActionButtonsProps {
   decision: "accepted" | "rejected" | null;
   onConfirm?: (accepted: boolean) => void;
   onExplain?: () => void;
+  isLatest?: boolean;
 }
 
 /**
@@ -78,10 +79,11 @@ export function ActionButtons({
   decision,
   onConfirm,
   onExplain,
+  isLatest = true,
 }: ActionButtonsProps) {
   return (
     <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
-      <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={onExplain}>
+      <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={onExplain} disabled={!isLatest}>
         <MessageSquare className="h-3 w-3" />
         Explain this
       </Button>

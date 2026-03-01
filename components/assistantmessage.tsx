@@ -32,6 +32,7 @@ export interface AssistantMessageProps {
   onConfirmationStateChange?: (pending: boolean) => void;
   /** Persists the accept/reject decision into the message store. */
   onDecisionPersist?: (decision: "accepted" | "rejected") => void;
+  isLatest?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ export function AssistantMessage({
   onConfirm,
   onExplain,
   onConfirmationStateChange,
+  isLatest = true,
   onDecisionPersist,
 }: AssistantMessageProps) {
   const structured = extractStructured(content);
@@ -125,25 +127,27 @@ export function AssistantMessage({
           </p>
         ))}
 
-        {hasSql && <CollapsibleSqlBlock sql={sqlString.trim()} />}
+        {hasSql && <CollapsibleSqlBlock riskCfg={riskCfg} sql={sqlString.trim()} />}
 
         {explanation && (
           <div className="space-y-1">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            {/* <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               What this query will do:
-            </p>
+            </p> */}
             <MarkdownQueryBlock>{explanation}</MarkdownQueryBlock>
           </div>
         )}
 
-        {result && (
-          <AffectedRecords
-            result={result}
-            sql={sqlString}
-            countColor={riskCfg.countColor}
-          />
-        )}
         {result && <ResultTable result={result} />}
+
+        {result && (
+  <AffectedRecords
+    result={result}
+    sql={sqlString}
+    riskCfg={riskCfg}
+  />
+)}
+
 
         {cleanedConfirmation && (
           <NotesSection
@@ -160,6 +164,7 @@ export function AssistantMessage({
           decision={decision}
           onConfirm={handleConfirm}
           onExplain={onExplain}
+          isLatest={isLatest}
         />
       </div>
     </div>
