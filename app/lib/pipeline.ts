@@ -16,30 +16,44 @@ export async function pipeline(
   console.log('[pipeline] sqlAgent returned:', sql?.slice(0, 120));
 
   if (sql) {
-    const risk = await riskAgent(sql);
+    // riskAgent is now synchronous (pure keyword analysis) — instant, no LLM call
+    const risk = riskAgent(sql);
     console.log('[pipeline] riskAgent returned:', JSON.stringify(risk));
+
+    const isReadQuery = /^\s*(SELECT|WITH|EXPLAIN)\b/i.test(sql);
 
     let results: Awaited<ReturnType<typeof tableAgent>> | null = null;
     let sqlError: string | null = null;
+    let explanation: string;
 
-    try {
-      results = await tableAgent(sql, connectionString, schema.details);
-      console.log(
-        '[pipeline] tableAgent returned, transactionId:',
-        results.transactionId,
-      );
-    } catch (err) {
-      sqlError = err instanceof Error ? err.message : String(err);
-      console.error('[pipeline] tableAgent error:', sqlError);
+    if (isReadQuery) {
+      // For SELECT queries, run table execution and EXPLAIN in parallel — saves ~3-5s
+      const [tableOutcome, explainOutcome] = await Promise.allSettled([
+        tableAgent(sql, connectionString, schema.details),
+        explainAgent(sql, chatHistory, connectionString, question, null),
+      ]);
+
+      if (tableOutcome.status === 'fulfilled') {
+        results = tableOutcome.value;
+        console.log('[pipeline] tableAgent returned, transactionId:', results.transactionId);
+      } else {
+        sqlError = tableOutcome.reason instanceof Error ? tableOutcome.reason.message : String(tableOutcome.reason);
+        console.error('[pipeline] tableAgent error:', sqlError);
+      }
+
+      explanation =
+        explainOutcome.status === 'fulfilled' ?
+          explainOutcome.value
+        : await explainAgent(sql, chatHistory, connectionString, question, sqlError);
+    } else {
+      // For writes: do NOT open a transaction here.
+      // The transaction is opened and immediately committed only when the user
+      // clicks confirm — this prevents the 60-second timeout from hitting while
+      // the explanation is being streamed and the user is reading it.
+      explanation = await explainAgent(sql, chatHistory, connectionString, question, null);
+      console.log('[pipeline] skipped tableAgent for write — will execute on confirm');
     }
 
-    const explanation = await explainAgent(
-      sql,
-      chatHistory,
-      connectionString,
-      question,
-      sqlError,
-    );
     return {
       sql,
       results,

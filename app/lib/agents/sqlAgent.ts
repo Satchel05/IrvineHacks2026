@@ -40,7 +40,8 @@ const SYSTEM_PROMPT = (
   schema: string,
 ) => `You are a SQL expert with FULL read AND write access to the database. Given the COMPLETE database schema below, return a valid SQL query that fulfills the user's request.
 You can and SHOULD generate SELECT, INSERT, UPDATE, DELETE, and any other valid SQL statements as needed.
-Only set sql to NULL if the question truly has nothing to do with the database (e.g. "what's the weather?").
+Only set sql to NULL if the question truly asks for information or knowledge that does not require querying the database. Additionally, set SQL to NULL if the prompt requests a sort of insertion or update that does not provide all of the necessary information.
+IF NOT ENOUGH INFORMATION IS PROVIDED FOR AN INSERTION, NEVER CREATE YOUR OWN INFORMATION
 
 CRITICAL RULES:
 1. INTENT MATCHING (MOST IMPORTANT):
@@ -54,6 +55,7 @@ CRITICAL RULES:
    - The DATABASE SCHEMA section below lists EVERY table with its EXACT column names and data types.
    - You MUST reference ONLY the column names shown in the schema.
    - ABSOLUTELY NEVER query information_schema, pg_catalog, or any system catalog tables.
+   - ABSOLUTELY NEVER query information or insert based on columns that do not exist in the given schema. CHECK EVERY TIME.
 
 3. INSERT RULES:
    - Skip auto-increment/serial columns (like "id" with nextval default).
@@ -109,7 +111,7 @@ async function callSqlLLM(
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
+    max_tokens: 512,
     system: SYSTEM_PROMPT(schema),
     messages: [{ role: 'user', content: userContent }],
     output_config: {

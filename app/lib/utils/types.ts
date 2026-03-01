@@ -31,7 +31,7 @@ export type RiskLevel = 0 | 1 | 2 | 3;
 /** Return type of riskAgent — risk classification + estimated affected rows. */
 export interface RiskAgentResult {
   risk: RiskLevel;
-  rowEstimate: number;
+  rowEstimate: number | null;
 }
 
 // ─── SQL Agent ────────────────────────────────────────────────────────────────

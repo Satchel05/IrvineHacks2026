@@ -73,43 +73,31 @@ export async function tableAgent(
   const isSelect = /^\s*SELECT\b/i.test(sql.trim());
   const { mcpClient } = await getMCPClient(connectionString);
 
-  // SELECTs — execute directly, no transaction needed
+  // SELECTs — execute directly and return the raw DB result (no LLM needed)
   if (isSelect) {
     const mcpResult = await mcpClient.callTool({
       name: 'execute_query',
       arguments: { sql },
     });
     const rawText = extractMCPText(mcpResult.content as MCPTextBlock[]);
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      system: `You are a SQL result formatter. Return the rows as a clean JSON-stringified value.\n\n${TABLE_REQUIREMENTS}`,
-      messages: [
-        {
-          role: 'user',
-          content: `SQL executed:\n${sql}\n\nRaw result:\n${rawText}\n\nSchema:\n${schema}`,
-        },
-      ],
-      output_config: {
-        format: {
-          type: 'json_schema',
-          schema: {
-            type: 'object',
-            properties: {
-              result: { type: 'string', description: TABLE_REQUIREMENTS },
-            },
-            required: ['result'],
-            additionalProperties: false,
-          },
-        },
-      },
-    });
-    const block = response.content.find(
-      (b): b is Anthropic.TextBlock => b.type === 'text',
-    );
-    if (!block?.text) throw new Error('tableAgent: empty response from model');
-    const parsed = JSON.parse(block.text) as { result: string };
-    return { result: parsed.result, sql };
+
+    // The MCP server returns the rows as JSON — parse and re-stringify to
+    // normalise formatting. Fall back to the raw string if it isn't valid JSON.
+    let result: string;
+    try {
+      const parsed = JSON.parse(rawText);
+      // Unwrap common wrapper shapes: { rows: [...] }, { data: [...] }, or a bare array
+      const rows =
+        Array.isArray(parsed) ? parsed
+        : Array.isArray(parsed?.rows) ? parsed.rows
+        : Array.isArray(parsed?.data) ? parsed.data
+        : parsed;
+      result = JSON.stringify(rows);
+    } catch {
+      result = rawText;
+    }
+
+    return { result, sql };
   }
 
   // ── Write operations (INSERT/UPDATE/DELETE) ──────────────────────────────
@@ -182,6 +170,46 @@ export async function tableAgent(
     sql,
     transactionId: transactionId ?? undefined,
   };
+}
+
+/**
+ * Execute a write (INSERT/UPDATE/DELETE) and immediately commit it.
+ * Called by the confirm route when the user clicks "Approve".
+ * No pending transaction is left open — execute + commit is atomic from the
+ * server's perspective, so there is no timeout window.
+ */
+export async function executeAndCommit(
+  sql: string,
+  connectionString: string,
+): Promise<{ rawText: string; transactionId: string | null }> {
+  console.log('[executeAndCommit] Executing write:', sql.slice(0, 120));
+  const { mcpClient } = await getMCPClient(connectionString);
+
+  const execResult = await mcpClient.callTool({
+    name: 'execute_dml_ddl_dcl_tcl',
+    arguments: { sql },
+  });
+  const rawText = extractMCPText(execResult.content as MCPTextBlock[]);
+  if (execResult.isError) throw new Error(`SQL execution failed: ${rawText}`);
+
+  const transactionId = extractTransactionId(rawText);
+  console.log('[executeAndCommit] Transaction ID:', transactionId);
+
+  if (transactionId) {
+    const commitResult = await mcpClient.callTool({
+      name: 'execute_commit',
+      arguments: { transaction_id: transactionId },
+    });
+    const commitText = extractMCPText(commitResult.content as MCPTextBlock[]);
+    if (commitResult.isError || /\berror\b/i.test(commitText)) {
+      throw new Error(`Commit failed: ${commitText}`);
+    }
+    console.log('[executeAndCommit] Committed successfully.');
+  } else {
+    console.warn('[executeAndCommit] No transactionId — assuming auto-committed.');
+  }
+
+  return { rawText, transactionId };
 }
 
 /**

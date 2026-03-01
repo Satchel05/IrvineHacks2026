@@ -1,83 +1,39 @@
-import Anthropic from '@anthropic-ai/sdk';
 import type { RiskAgentResult } from '@/app/lib/utils/types';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+/**
+ * riskAgent — fully deterministic, zero LLM calls.
+ *
+ * Risk levels:
+ *   3 = Extreme  — DROP, TRUNCATE, DDL (ALTER/CREATE/RENAME), GRANT/REVOKE
+ *   2 = High     — DELETE (any), UPDATE without WHERE
+ *   1 = Moderate — INSERT, UPDATE with WHERE
+ *   0 = Low      — SELECT / WITH / EXPLAIN (read-only)
+ */
+export function riskAgent(tentativeSql: string): RiskAgentResult {
+  const sql = tentativeSql.trim();
+  // Strip leading SQL comments so we match the first real keyword
+  const stripped = sql.replace(/^(--[^\n]*\n|\/\*[\s\S]*?\*\/|\s)+/, '').toUpperCase();
 
-const RISK_DESCRIPTION = `
-Integer risk level of the SQL statement.
-
-Classify strictly using the highest applicable rule below. Do NOT infer intent. Do NOT average risk. If multiple statements exist, assign the highest applicable risk level.
-
-0 = Low (Read-only, safe)
-- SELECT statements only
-- No data modification
-- No locking or side effects
-- Safe to auto-approve
-
-1 = Moderate (Scoped write, controlled impact)
-- INSERT
-- UPDATE with a WHERE clause restricting affected rows
-- Changes are targeted and predictable
-- Requires approval prompt before execution
-
-2 = High (Broad or potentially destructive write)
-- UPDATE without a WHERE clause
-- DELETE (with or without WHERE)
-- Any write that could affect many or all rows
-- Must show row-count estimate and require explicit confirmation
-
-3 = Extreme (Schema or irreversible destructive change)
-- DROP, TRUNCATE
-- Any DDL statement (ALTER, CREATE, RENAME, etc.)
-- Permission or role changes
-- Blocked at database role level
-
-Always choose the highest matching category.
-`;
-
-const ROW_ESTIMATE_DESCRIPTION =
-  'Number of rows returned (SELECT) or affected (INSERT/UPDATE/DELETE).';
-
-// Step 2 in pipeline: NL to SQL
-export async function riskAgent(
-  tentativeSql: string,
-): Promise<RiskAgentResult> {
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    system: `You are a SQL risk assessor. Analyze the SQL query and return a risk assessment and row estimate.`,
-    messages: [
-      { role: 'user', content: `Assess this SQL query:\n${tentativeSql}` },
-    ],
-    output_config: {
-      format: {
-        type: 'json_schema',
-        schema: {
-          type: 'object',
-          properties: {
-            risk: {
-              type: 'integer',
-              description: RISK_DESCRIPTION,
-            },
-            rowEstimate: {
-              type: 'integer',
-              description: ROW_ESTIMATE_DESCRIPTION,
-            },
-          },
-          required: ['risk', 'rowEstimate'],
-          additionalProperties: false,
-        },
-      },
-    },
-  });
-
-  const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
-  const text = block?.text;
-  if (!text) throw new Error('riskAgent: empty response from model');
-
-  try {
-    return JSON.parse(text) as RiskAgentResult;
-  } catch {
-    throw new Error(`riskAgent: failed to parse response — ${text}`);
+  // Level 3 — schema / irreversible changes
+  if (/^(DROP|TRUNCATE|ALTER|CREATE|RENAME|GRANT|REVOKE)\b/.test(stripped)) {
+    return { risk: 3, rowEstimate: null };
   }
+
+  // Level 2 — broad destructive writes
+  // DELETE is always level 2
+  if (/^DELETE\b/.test(stripped)) {
+    return { risk: 2, rowEstimate: null };
+  }
+  // UPDATE without a WHERE clause
+  if (/^UPDATE\b/.test(stripped) && !/\bWHERE\b/.test(stripped)) {
+    return { risk: 2, rowEstimate: null };
+  }
+
+  // Level 1 — scoped writes
+  if (/^(INSERT|UPDATE|MERGE|REPLACE|UPSERT)\b/.test(stripped)) {
+    return { risk: 1, rowEstimate: null };
+  }
+
+  // Level 0 — read-only
+  return { risk: 0, rowEstimate: null };
 }

@@ -1,11 +1,13 @@
 import { NextRequest } from 'next/server';
-import { approvePreview, rejectPreview } from '@/app/lib/agents/tableAgent';
+import { executeAndCommit, rejectPreview } from '@/app/lib/agents/tableAgent';
 
 export async function POST(req: NextRequest) {
-  const { connectionString, action, transactionId } = await req.json();
+  const { connectionString, action, transactionId, sql } = await req.json();
   console.log(
     '[/api/confirm] action:',
     action,
+    '| sql:',
+    sql?.slice(0, 80),
     '| transactionId:',
     transactionId,
     '| connStr:',
@@ -22,23 +24,22 @@ export async function POST(req: NextRequest) {
       { error: 'action must be "approve" or "reject"' },
       { status: 400 },
     );
-  if (action === 'approve' && !transactionId) {
-    console.error(
-      '[/api/confirm] REJECTED: transactionId is missing for approve action',
-    );
+  if (action === 'approve' && !sql) {
     return Response.json(
-      { error: 'transactionId is required for approval' },
+      { error: 'sql is required for approval' },
       { status: 400 },
     );
   }
 
   try {
     if (action === 'approve') {
-      await approvePreview(connectionString, transactionId);
-      console.log('[/api/confirm] Transaction committed successfully');
+      // Execute the write and immediately commit — no long-lived pending transaction
+      await executeAndCommit(sql, connectionString);
+      console.log('[/api/confirm] Write executed and committed');
     } else {
+      // Reject: if there's a legacy transactionId still in flight, roll it back
       await rejectPreview(connectionString, transactionId);
-      console.log('[/api/confirm] Transaction rolled back');
+      console.log('[/api/confirm] Operation rejected');
     }
     return Response.json({ ok: true, action });
   } catch (err) {
