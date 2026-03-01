@@ -11,7 +11,7 @@
 import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getRiskConfig } from "./risk";
+import { getRiskConfig, type RiskConfig } from "./risk";
 
 type SortDirection = 'asc' | 'desc' | null;
 interface SortState {
@@ -177,7 +177,7 @@ interface AffectedRecordsProps {
 export function AffectedRecords({
   result,
   sql,
-  countColor,
+  riskCfg,
 }: AffectedRecordsProps) {
   const count = getRowCount(result, sql);
   if (count === null) return null;
@@ -185,16 +185,20 @@ export function AffectedRecords({
   const isWrite = isWriteOperation(sql);
 
   return (
-    <>
-      <p className='text-xs font-semibold text-muted-foreground uppercase tracking-wider'>
-        {isWriteOperation(sql) ? 'Rows Affected' : 'Rows Returned'}
+    <div
+      className={cn(
+        'rounded-md border px-4 py-3',
+        riskCfg.notesBg,
+      )}>
+      <p className={cn('text-xs font-semibold uppercase tracking-wider mb-1', riskCfg.notesTitleColor)}>
+        {isWrite ? 'Rows Affected' : 'Rows Returned'}
       </p>
-      <p className={cn('text-2xl font-bold', countColor)}>
+      <p className={cn('text-2xl font-bold', riskCfg.countColor)}>
         {count?.toLocaleString() ?? '0'}{' '}
         <span className='text-sm font-normal text-muted-foreground'>
           {count === 1 ? 'row' : 'rows'}
         </span>
       </p>
-    </>
+    </div>
   );
 }

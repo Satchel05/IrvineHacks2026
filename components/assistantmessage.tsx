@@ -127,7 +127,7 @@ export function AssistantMessage({
           </p>
         ))}
 
-        {hasSql && <CollapsibleSqlBlock riskCfg={riskCfg} sql={sqlString.trim()} />}
+        {hasSql && <CollapsibleSqlBlock sql={sqlString.trim()} />}
 
         {explanation && (
           <div className="space-y-1">
@@ -141,13 +141,8 @@ export function AssistantMessage({
         {result && <ResultTable result={result} />}
 
         {result && (
-  <AffectedRecords
-    result={result}
-    sql={sqlString}
-    riskCfg={riskCfg}
-  />
-)}
-
+          <AffectedRecords result={result} sql={sqlString} riskCfg={riskCfg} />
+        )}
 
         {cleanedConfirmation && (
           <NotesSection

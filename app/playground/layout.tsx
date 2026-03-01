@@ -341,7 +341,9 @@ export default function PlaygroundLayout({
         data-sidebar-open={String(open)}
         data-sidebar-init={String(mounted.current)}
         className="flex w-full min-h-svh"
-        style={{ "--sidebar-width": `${SIDEBAR_WIDTH}px` } as React.CSSProperties}
+        style={
+          { "--sidebar-width": `${SIDEBAR_WIDTH}px` } as React.CSSProperties
+        }
       >
         <SidebarProvider
           open={open}

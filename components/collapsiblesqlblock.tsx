@@ -8,17 +8,14 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Copy as CopyIcon } from "lucide-react";
+import { Copy as CopyIcon } from "lucide-react";
 import FancyCodeBlock from "./FancyCodeBlock";
-import type { RiskConfig } from "./risk";
-import { cn } from "@/lib/utils";
 
 interface CollapsibleSqlBlockProps {
   sql: string;
-  riskCfg: RiskConfig
 }
 
-export function CollapsibleSqlBlock({ sql, riskCfg }: CollapsibleSqlBlockProps) {
+export function CollapsibleSqlBlock({ sql }: CollapsibleSqlBlockProps) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -34,7 +31,7 @@ export function CollapsibleSqlBlock({ sql, riskCfg }: CollapsibleSqlBlockProps) 
   };
 
   return (
-    <div className={cn("rounded-md border bg-muted/50 overflow-hidden text-sm w-full max-w-full [&_pre]:!whitespace-pre-wrap [&_code]:!whitespace-pre-wrap [&_*]:!overflow-wrap-anywhere", riskCfg.borderColor)}>
+    <div className="rounded-md border bg-muted/50 overflow-hidden text-sm w-full max-w-full [&_pre]:!whitespace-pre-wrap [&_code]:!whitespace-pre-wrap [&_*]:!overflow-wrap-anywhere">
       <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted text-muted-foreground text-xs font-mono">
         <span>SQL</span>
         <button
