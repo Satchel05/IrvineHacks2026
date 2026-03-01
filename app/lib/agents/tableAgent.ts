@@ -82,14 +82,6 @@ export async function tableAgent(
     const rawText = extractMCPText(mcpResult.content as MCPTextBlock[]);
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      system: `You are a SQL result formatter. Return the rows as a clean JSON-stringified value.\n\n${TABLE_REQUIREMENTS}`,
-      messages: [
-        {
-          role: 'user',
-          content: `SQL executed:\n${sql}\n\nRaw result:\n${rawText}\n\nSchema:\n${schema}`,
-        },
-      ],
       output_config: {
         format: {
           type: 'json_schema',

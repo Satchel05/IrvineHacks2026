@@ -44,7 +44,7 @@ export async function riskAgent(
 ): Promise<RiskAgentResult> {
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
+    max_tokens: 256,
     system: `You are a SQL risk assessor. Analyze the SQL query and return a risk assessment and row estimate.`,
     messages: [
       { role: 'user', content: `Assess this SQL query:\n${tentativeSql}` },
