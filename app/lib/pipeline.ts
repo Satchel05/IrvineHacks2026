@@ -13,7 +13,6 @@ export async function pipeline(
   const schema = await initializeSchema(connectionString); // cached after first call
 
   const sql = await sqlAgent(question, schema.details, chatHistory);
-//   if (!sql) return { error: 'Could not generate SQL' };
 
   const explanation = await explainAgent(
     sql,
@@ -22,10 +21,21 @@ export async function pipeline(
     question,
   );
 
-  const risk = await riskAgent(sql);
-  if (risk.risk >= 2) return { requiresConfirmation: true, sql, risk };
+  
 
-  const results = await tableAgent(sql, connectionString, schema.details);
 
-  return { sql, results, explanation, risk };
+  if(sql){
+    const risk = await riskAgent(sql);
+    const results = await tableAgent(sql, connectionString, schema.details);
+    return { sql, results, explanation, risk };
+  }else{
+    const risk = null;
+    const results = null;
+    return { sql, results, explanation, risk };
+  }
+  
+
+
+
+  
 }
