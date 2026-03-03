@@ -21,7 +21,9 @@ WORKDIR /app
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/yarn.lock ./
 COPY --from=builder /app/node_modules ./node_modules
+
 COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/server.js ./server.js
 
 EXPOSE 3000
 CMD ["yarn", "start"]
