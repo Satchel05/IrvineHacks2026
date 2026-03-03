@@ -12,7 +12,7 @@ console.log(`Starting next on ${host}:${port}`);
 
 const child = spawn('npx', ['next', 'start', '-p', port, '-H', host], {
   stdio: 'inherit',
-  shell: true
+  shell: true,
 });
 
 child.on('error', (err) => {
