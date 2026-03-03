@@ -1,21 +1,27 @@
 # Use official Node 22.14.0 image
-FROM node:22.14.0
 
-# Set working directory
+# Build stage
+FROM node:22.14.0 AS builder
 WORKDIR /app
 
-# Copy package files and install dependencies
+# Only copy package files for install
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
 
-# Copy all source code
+# Copy source and build
 COPY . .
-
-# Build Next.js app
 RUN yarn build
 
-# Expose port (Railway sets $PORT)
-EXPOSE 3000
+# Production stage
+FROM node:22.14.0 AS runner
+WORKDIR /app
 
-# Start server
+# Only copy built output and production deps
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/yarn.lock ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+
+EXPOSE 3000
 CMD ["yarn", "start"]
