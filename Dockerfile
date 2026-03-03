@@ -16,12 +16,12 @@ RUN yarn build
 FROM node:22.14.0 AS runner
 WORKDIR /app
 
+
 # Only copy built output and production deps
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/yarn.lock ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 CMD ["yarn", "start"]
