@@ -56,7 +56,10 @@ export async function getMCPClient(
   // Spawn the MCP Postgres server as a child process communicating over stdio
   const transport = new StdioClientTransport({
     command: 'npx',
-    args: ['-y', 'mcp-postgres-full-access', connectionString],
+    args: [
+      './node_modules/mcp-postgres-full-access/dist/index.js',
+      connectionString,
+    ],
     env: {
       ...process.env,
       TRANSACTION_TIMEOUT_MS: '60000', // Max time for a single transaction
