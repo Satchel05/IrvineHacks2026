@@ -2,7 +2,7 @@
 builder = "nixpacks"
 
 [build.env]
-NIXPACKS_NODE_VERSION = "22"
+NIXPACKS_NODE_VERSION = "22.14"
 
 [deploy]
 startCommand = "node server.js"
