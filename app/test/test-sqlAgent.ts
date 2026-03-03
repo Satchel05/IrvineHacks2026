@@ -11,7 +11,7 @@ async function test() {
   `;
   const question = 'Show all users';
 
-  const result = await sqlAgent(question, schema);
+  const result = await sqlAgent(question, schema, []);
   console.log('SQL:', result);
 }
 

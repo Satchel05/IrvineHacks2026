@@ -135,7 +135,7 @@ async function callSqlLLM(
 
   const rawBlock = response.content.find(
     (b: any) => b?.type === 'text' && typeof b.text === 'string',
-  );
+  ) as { text: string } | undefined;
   console.log('[sqlAgent] Raw LLM response:', rawBlock?.text?.slice(0, 200));
 
   const sql = extractSqlFromContentBlocks(response.content);
