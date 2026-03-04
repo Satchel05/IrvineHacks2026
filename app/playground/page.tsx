@@ -1,3 +1,4 @@
+// This route has been removed. All traffic is now directed to the root page.
 /**
  * playground/page.tsx — Main playground page.
  *

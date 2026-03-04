@@ -1,3 +1,4 @@
+// This route has been removed. All traffic is now directed to the root page.
 "use client";
 
 import { useState, useEffect, useRef } from "react";

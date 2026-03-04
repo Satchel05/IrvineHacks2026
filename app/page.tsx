@@ -8,13 +8,8 @@ export default function HomePage() {
         justifyContent: 'center',
         minHeight: '100vh',
       }}>
-      <h1>Healthy!</h1>
-      <p>This page confirms the app is running.</p>
-      <a
-        href='/playground'
-        style={{ color: '#0070f3', textDecoration: 'underline' }}>
-        Go to Playground
-      </a>
+      <h1>Welcome!</h1>
+      <p>This is the main page. All traffic is now directed here.</p>
     </main>
   );
 }
