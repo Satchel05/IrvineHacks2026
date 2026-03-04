@@ -1,4 +1,3 @@
-
 const { spawn } = require('child_process');
 
 console.log('=== SERVER STARTING ===');
@@ -32,7 +31,9 @@ child.on('error', (err) => {
 child.on('exit', (code, signal) => {
   console.log(`CHILD EXITED WITH CODE: ${code}, SIGNAL: ${signal}`);
   if (code !== 0) {
-    console.error('Next.js failed to start. Check build output and dependencies.');
+    console.error(
+      'Next.js failed to start. Check build output and dependencies.',
+    );
   }
   process.exit(code || 1);
 });
