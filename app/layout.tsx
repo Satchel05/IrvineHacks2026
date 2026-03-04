@@ -51,7 +51,7 @@ export default function RootLayout({
           </TooltipProvider>
         </ThemeProvider>
 // SidebarRoot merges playground sidebar layout logic for root
-function SidebarRoot({ children }: { children: React.ReactNode }) {
+function SidebarRoot({ children }) {
   const [open, setOpen] = useState(true);
   const mounted = useRef(false);
   useEffect(() => { mounted.current = true; }, []);
