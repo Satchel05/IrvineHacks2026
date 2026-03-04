@@ -50,65 +50,48 @@ export default function RootLayout({
             <SidebarRoot>{children}</SidebarRoot>
           </TooltipProvider>
         </ThemeProvider>
-      /**
-       * Root layout. Every page in the app is rendered inside this component.
-       * The `antialiased` class enables font smoothing across browsers.
-       */
-      export default function RootLayout({
-        children,
-      }: Readonly<{ children: React.ReactNode }>) {
-        return (
-          <html lang="en" suppressHydrationWarning>
-            <body className={`${sans.variable} ${mono.variable} antialiased`}>
-              <ThemeProvider>
-                <TooltipProvider>
-                  <SidebarRoot>{children}</SidebarRoot>
-                </TooltipProvider>
-              </ThemeProvider>
-            </body>
-          </html>
-        );
+// SidebarRoot merges playground sidebar layout logic for root
+function SidebarRoot({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(true);
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; }, []);
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setOpen((prev) => !prev);
       }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+  return (
+    <div
+      data-sidebar-open={String(open)}
+      data-sidebar-init={String(mounted.current)}
+      className='flex w-full min-h-svh'
+      style={{ '--sidebar-width': `352px` } as React.CSSProperties}
+    >
+      <SidebarProvider open={open} onOpenChange={setOpen} style={{ display: 'contents' } as React.CSSProperties}>
+        <AppSidebar />
+        <main className='flex-1 min-w-0 overflow-hidden'>{children}</main>
+      </SidebarProvider>
+    </div>
+  );
+}
 
-      // SidebarRoot merges playground sidebar layout logic for root
-      function SidebarRoot({ children }: { children: React.ReactNode }) {
-        const [open, setOpen] = useState(true);
-        const mounted = useRef(false);
-        useEffect(() => { mounted.current = true; }, []);
-        useEffect(() => {
-          const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
-              e.preventDefault();
-              setOpen((prev) => !prev);
-            }
-          };
-          window.addEventListener('keydown', handleKeyDown);
-          return () => window.removeEventListener('keydown', handleKeyDown);
-        }, []);
-        return (
-          <div
-            data-sidebar-open={String(open)}
-            data-sidebar-init={String(mounted.current)}
-            className='flex w-full min-h-svh'
-            style={{ '--sidebar-width': `352px` } as React.CSSProperties}
-          >
-            <SidebarProvider open={open} onOpenChange={setOpen} style={{ display: 'contents' } as React.CSSProperties}>
-              <AppSidebar />
-              <main className='flex-1 min-w-0 overflow-hidden'>{children}</main>
-            </SidebarProvider>
-          </div>
-        );
-      }
-          className='flex w-full min-h-svh'
-          style={{ '--sidebar-width': `352px` } as React.CSSProperties}
-        >
-          <SidebarProvider open={open} onOpenChange={setOpen} style={{ display: 'contents' } as React.CSSProperties}>
-            <AppSidebar />
-            <main className='flex-1 min-w-0 overflow-hidden'>{children}</main>
-          </SidebarProvider>
-        </div>
-      );
-    }
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${sans.variable} ${mono.variable} antialiased`}>
+        <ThemeProvider>
+          <TooltipProvider>
+            <SidebarRoot>{children}</SidebarRoot>
+          </TooltipProvider>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }
