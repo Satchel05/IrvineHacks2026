@@ -26,4 +26,4 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/server.js ./server.js
 
 EXPOSE 3000
-CMD ["yarn", "start"]
+CMD ["node", "server.js"]
